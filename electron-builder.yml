@@ -1,0 +1,41 @@
+appId: com.typoradev.app
+productName: Typora Dev
+copyright: Copyright © 2026 Typora Dev
+
+directories:
+  output: release
+  buildResources: build
+
+files:
+  - dist/renderer/**
+  - src/main/**
+  - src/preload/**
+
+asar: true
+
+# 未签名的本地构建（用户自用，非 App Store / 分发）
+# 如需正式签名分发，见 README「代码签名」章节。
+mac:
+  category: public.app-category.productivity
+  icon: build/icon.png
+  identity: null
+  target:
+    - target: dmg
+      arch:
+        - arm64
+    - target: zip
+      arch:
+        - arm64
+
+dmg:
+  title: Typora Dev
+  icon: build/icon.png
+  contents:
+    - x: 130
+      y: 220
+    - x: 410
+      y: 220
+      type: link
+      path: /Applications
+
+npmRebuild: false

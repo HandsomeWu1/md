@@ -1,0 +1,35 @@
+{
+  "name": "typora-dev",
+  "version": "0.1.0",
+  "description": "A Typora-style WYSIWYG Markdown desktop editor for macOS (Apple Silicon).",
+  "author": "Typora Dev",
+  "license": "MIT",
+  "private": true,
+  "main": "src/main/index.js",
+  "scripts": {
+    "dev": "concurrently -k -s first \"npm:dev:renderer\" \"npm:dev:electron\"",
+    "dev:renderer": "vite",
+    "dev:electron": "wait-on http://127.0.0.1:5173 && cross-env VITE_DEV_SERVER_URL=http://127.0.0.1:5173 electron .",
+    "build:renderer": "vite build",
+    "start": "npm run build:renderer && electron .",
+    "pack:mac-arm64": "npm run build:renderer && electron-builder --mac --arm64 --dir",
+    "dist:mac-arm64": "npm run build:renderer && electron-builder --mac --arm64",
+    "dist:mac": "npm run build:renderer && electron-builder --mac"
+  },
+  "dependencies": {},
+  "devDependencies": {
+    "@milkdown/kit": "7.15.3",
+    "@milkdown/react": "7.15.3",
+    "@milkdown/theme-nord": "7.15.3",
+    "@vitejs/plugin-react": "4.3.2",
+    "concurrently": "9.0.1",
+    "cross-env": "7.0.3",
+    "electron": "33.2.0",
+    "electron-builder": "25.1.8",
+    "markdown-it": "14.1.0",
+    "react": "18.3.1",
+    "react-dom": "18.3.1",
+    "vite": "5.4.8",
+    "wait-on": "8.0.1"
+  }
+}
