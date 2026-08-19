@@ -18,6 +18,7 @@ const api = {
   deletePath: (p) => ipcRenderer.invoke('file:delete', p),
   listTree: (root) => ipcRenderer.invoke('file:list-tree', root),
   revealInFinder: (p) => ipcRenderer.invoke('file:reveal', p),
+  saveImage: (data, name) => ipcRenderer.invoke('image:save', data, name),
 
   // 导出
   exportHtml: (html, name) => ipcRenderer.invoke('export:html', html, name),

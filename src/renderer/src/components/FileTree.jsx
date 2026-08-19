@@ -1,5 +1,23 @@
 import React from 'react';
 
+function FolderIcon({ open }) {
+  return (
+    <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round">
+      <path d="M1.75 3.5A1.75 1.75 0 0 1 3.5 1.75h2.6l1.3 1.3h4.85a1.75 1.75 0 0 1 1.75 1.75v7.7a1.75 1.75 0 0 1-1.75 1.75H3.5a1.75 1.75 0 0 1-1.75-1.75V3.5Z" />
+      {open && <path d="M1.75 7.25h12.5" />}
+    </svg>
+  );
+}
+
+function FileIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.3" strokeLinejoin="round">
+      <path d="M4.25 1.5h5.25l4 4v7.25a1.75 1.75 0 0 1-1.75 1.75H4.25a1.75 1.75 0 0 1-1.75-1.75V3.25c0-.97.78-1.75 1.75-1.75Z" />
+      <path d="M9.5 1.5v4h4" />
+    </svg>
+  );
+}
+
 function TreeNode({ node, depth, expanded, activePath, onSelectFile, onToggleExpand }) {
   const isDir = node.type === 'dir';
   const isOpen = expanded.has(node.path);
@@ -19,14 +37,14 @@ function TreeNode({ node, depth, expanded, activePath, onSelectFile, onToggleExp
     <div className="filetree-node">
       <div
         className={'filetree-row' + (isActive ? ' active' : '')}
-        style={{ paddingLeft: 8 + depth * 16 }}
+        style={{ paddingLeft: 6 + depth * 14 }}
         onClick={handleRowClick}
       >
-        <span
-          className="filetree-arrow"
-          onClick={handleArrowClick}
-        >
+        <span className="filetree-arrow" onClick={handleArrowClick}>
           {isDir ? (isOpen ? '▾' : '▸') : ''}
+        </span>
+        <span className="filetree-icon">
+          {isDir ? <FolderIcon open={isOpen} /> : <FileIcon />}
         </span>
         <span className="filetree-label">{node.name}</span>
       </div>

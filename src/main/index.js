@@ -27,9 +27,12 @@ function createWindow() {
       nodeIntegration: false,
       sandbox: true,
       webSecurity: true,
-      spellcheck: false,
+      spellcheck: true,
     },
   });
+
+  // 启用拼写检查（英文优先；中文拼写检查依赖系统词典，macOS 原生支持）。
+  mainWindow.webContents.session.setSpellCheckerLanguages(['en-US']).catch(() => {});
 
   // 安全加固：禁止页面导航离开应用、禁止 window.open / webview
   mainWindow.webContents.on('will-navigate', (event) => event.preventDefault());

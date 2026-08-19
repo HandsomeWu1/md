@@ -7,17 +7,20 @@ import TabBar from './components/TabBar';
 import StatusBar from './components/StatusBar';
 import SearchDialog from './components/SearchDialog';
 import Welcome from './components/Welcome';
+import Toolbar from './components/Toolbar';
 import Editor from './editor/Editor';
 import { extractOutline, countWords, findInMarkdown, replaceAllInMarkdown } from './utils/markdown';
 import { buildExportHtml } from './utils/export';
-
-const api = window.api;
+import { setFocusMode, setTypewriterMode } from './editor/modes';
+import { actions } from './editor/commands';
 
 let uid = 0;
 const nextId = () => `tab-${++uid}`;
 const baseName = (p) => (p ? p.split('/').pop() : '未命名');
 
 export default function App() {
+  // 在组件体内取 api，避免模块顶层固化 window.api（preload/mock 注入时机更晚时会拿到 undefined）。
+  const api = window.api;
   const [settings, setSettings] = useState({ theme: 'light' });
   const [tabs, setTabs] = useState([]);
   const [activeTabId, setActiveTabId] = useState(null);
@@ -36,6 +39,9 @@ export default function App() {
     matches: [],
     index: -1,
   });
+  const [focusModeOn, setFocusModeOn] = useState(false);
+  const [typewriterModeOn, setTypewriterModeOn] = useState(false);
+  const [activeFormats, setActiveFormats] = useState({});
 
   const editorRef = useRef(null);
   const suppressRef = useRef(false);
@@ -52,6 +58,11 @@ export default function App() {
 
   const outline = useMemo(() => extractOutline(activeTab?.markdown || ''), [activeTab?.markdown]);
   const stats = useMemo(() => countWords(activeTab?.markdown || ''), [activeTab?.markdown]);
+
+  // 同步主题到根元素，让 CSS 的 [data-theme='dark'] 变量生效
+  useEffect(() => {
+    document.documentElement.setAttribute('data-theme', theme);
+  }, [theme]);
 
   // ---------- 基础工具 ----------
   const updateTab = useCallback((id, patch) => {
@@ -279,12 +290,40 @@ export default function App() {
     });
   }, []);
 
+  // ---------- 编辑模式（Focus / Typewriter） ----------
+  const toggleFocusMode = useCallback(() => {
+    setFocusModeOn((v) => {
+      const next = !v;
+      setFocusMode(next);
+      setTimeout(() => editorRef.current?.refresh(), 0);
+      return next;
+    });
+  }, []);
+
+  const toggleTypewriterMode = useCallback(() => {
+    setTypewriterModeOn((v) => {
+      const next = !v;
+      setTypewriterMode(next);
+      return next;
+    });
+  }, []);
+
   // ---------- 大纲跳转 ----------
   const jumpToHeading = useCallback((index) => {
     const headings = document.querySelectorAll(
       '.milkdown h1, .milkdown h2, .milkdown h3, .milkdown h4, .milkdown h5, .milkdown h6'
     );
     headings[index]?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }, []);
+
+  // ---------- 工具栏动作 ----------
+  const runToolbarAction = useCallback((name, payload) => {
+    const editor = editorRef.current?.getEditor();
+    if (!editor) return;
+    const fn = actions[name];
+    if (fn) fn(editor, payload);
+    // 命令执行后重新聚焦编辑器，确保光标可见
+    setTimeout(() => editorRef.current?.focus(), 0);
   }, []);
 
   // ---------- 菜单 ----------
@@ -309,6 +348,8 @@ export default function App() {
           setSidebarMode((m) => (m === 'outline' ? 'files' : 'outline'));
           break;
         case 'view:toggle-theme': toggleTheme(); break;
+        case 'view:toggle-focus': toggleFocusMode(); break;
+        case 'view:toggle-typewriter': toggleTypewriterMode(); break;
         case 'app:about':
           window.alert('Typora Dev v0.1.0\nTypora 风格的所见即所得 Markdown 编辑器（macOS Apple Silicon）');
           break;
@@ -316,7 +357,7 @@ export default function App() {
         default: break;
       }
     },
-    [newTab, openFileDialog, openFolderDialog, doSave, saveAs, closeTab, doExport, toggleTheme]
+    [newTab, openFileDialog, openFolderDialog, doSave, saveAs, closeTab, doExport, toggleTheme, toggleFocusMode, toggleTypewriterMode]
   );
 
   const handleMenuRef = useRef(handleMenu);
@@ -400,15 +441,19 @@ export default function App() {
               onClearRecent={async () => setRecentFiles(await api.clearRecentFiles())}
             />
           ) : (
-            <div className="editor-container">
-              {activeTab && (
-                <Editor
-                  key={activeTab.id}
-                  ref={editorRef}
-                  initialValue={activeTab.markdown}
-                  onChange={handleEditorChange}
-                />
-              )}
+            <div className="editor-wrap">
+              <Toolbar onAction={runToolbarAction} activeFormats={activeFormats} />
+              <div className="editor-container">
+                {activeTab && (
+                  <Editor
+                    key={activeTab.id}
+                    ref={editorRef}
+                    initialValue={activeTab.markdown}
+                    onChange={handleEditorChange}
+                    onSelectionChange={setActiveFormats}
+                  />
+                )}
+              </div>
             </div>
           )}
 

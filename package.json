@@ -16,9 +16,11 @@
     "dist:mac-arm64": "npm run build:renderer && electron-builder --mac --arm64",
     "dist:mac": "npm run build:renderer && electron-builder --mac"
   },
-  "dependencies": {},
   "devDependencies": {
     "@milkdown/kit": "7.15.3",
+    "@milkdown/plugin-emoji": "7.15.3",
+    "@milkdown/plugin-math": "7.5.9",
+    "@milkdown/plugin-prism": "7.15.3",
     "@milkdown/react": "7.15.3",
     "@milkdown/theme-nord": "7.15.3",
     "@vitejs/plugin-react": "4.3.2",
@@ -26,7 +28,10 @@
     "cross-env": "7.0.3",
     "electron": "33.2.0",
     "electron-builder": "25.1.8",
+    "katex": "0.16.47",
     "markdown-it": "14.1.0",
+    "mermaid": "10.9.8",
+    "node-emoji": "2.2.0",
     "react": "18.3.1",
     "react-dom": "18.3.1",
     "vite": "5.4.8",

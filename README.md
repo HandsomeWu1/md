@@ -4,8 +4,9 @@ Typora 风格的所见即所得（WYSIWYG）Markdown 桌面编辑器，面向 **
 
 > 应用图标使用 `service/md-preview/src/md_preview/static/logo.png`。
 
-## 功能（v1 · 核心体验）
+## 功能
 
+### 核心体验
 - **所见即所得 Markdown 编辑**：基于 Milkdown（ProseMirror），支持 CommonMark + GFM（标题、列表、任务列表、表格、删除线、代码块、引用、链接、图片、分割线等），输入即渲染。
 - **侧栏文件树**：打开文件夹后浏览目录，点击打开 `.md/.markdown/.mdown/.txt` 文件。
 - **大纲（TOC）**：侧栏切换「大纲」标签，展示文档标题结构，点击跳转。
@@ -18,10 +19,27 @@ Typora 风格的所见即所得（WYSIWYG）Markdown 桌面编辑器，面向 **
 - **最近文件**：欢迎页与文件菜单记录最近打开的文件。
 - **原生 macOS 体验**：`hiddenInset` 标题栏、原生菜单、红绿灯未保存圆点、`Cmd+Q/W/N/O/S` 等快捷键、Finder 直接打开 `.md`。
 
+### 富媒体与高级编辑
+- **可视化工具栏**：编辑区顶部的按钮栏，新手点击即可插入常用元素——段落格式（正文/标题 1-6）、加粗、斜体、删除线、行内代码、无序/有序/任务列表、引用、代码块、表格、分割线、链接、图片（无需记忆 Markdown 语法）。
+  - **激活态高亮**：光标所在位置的格式会在对应按钮上亮起（如加粗文字里点光标，B 按钮高亮；段落下拉实时显示当前标题级别），对齐 Typora/Word 体验。
+  - **链接/图片弹窗**：点击「链接」「图片」按钮弹出精致输入弹窗（非系统 prompt），支持 Enter 确定、Esc 取消。
+  - **图片本地文件选择**：图片按钮支持「本地文件」直接选择图片插入（自动保存到本地并引用），也可输入 URL。
+- **代码高亮**：` ```javascript ` 等围栏代码块，Prism 全语言语法高亮，明暗主题各一套配色。
+- **数学公式**：KaTeX，行内 `$...$` 与块级 `$$...$$`。
+- **Mermaid 图表**：` ```mermaid ` 代码块实时渲染流程图/时序图等 SVG 预览。
+- **任务列表可交互**：` ☑ 任务列表`（gfm）渲染原生勾选框，**点击即可切换完成状态**（不用记 markdown 语法）。已完成项自动加删除线。
+- **Emoji**：输入 `:smile:` 自动转成原生 emoji 字符（无外部 CDN 依赖）。
+- **图片拖拽/粘贴**：拖入或粘贴图片自动保存到本地并插入（`file://` 引用，非 base64 内联）。
+- **Slash 命令菜单**：输入 `/` 弹出菜单，快速切换段落类型（标题/列表/引用/代码块）。
+- **Focus 模式**：`Cmd+Shift+F`，当前段落高亮、其余变暗。
+- **Typewriter 模式**：`Cmd+Shift+T`，光标始终保持在视口垂直居中。
+- **拼写检查**：英文拼写检查（macOS 原生词典）。
+
 ## 技术栈
 
 - **Electron**（主进程 / preload / 打包）
 - **Milkdown v7** + React（`@milkdown/kit`、`@milkdown/react`、`@milkdown/theme-nord`）—— 所见即所得编辑器
+- **插件**：`@milkdown/plugin-prism`（代码高亮）、`@milkdown/plugin-math`（KaTeX）、`@milkdown/plugin-emoji`、`@milkdown/plugin-upload`（图片）、`@milkdown/plugin-slash`（斜杠命令）
 - **markdown-it** —— 导出 HTML/PDF 的渲染
 - **Vite** —— 渲染层构建
 - **electron-builder** —— 打包 `.dmg` / `.zip`
@@ -52,7 +70,14 @@ typora-dev/
         ├── public/logo.png
         └── src/
             ├── App.jsx         # 主逻辑
+            ├── main.jsx        # 入口（含浏览器预览 mock API）
+            ├── mockApi.js      # 非 Electron 环境的内存版 API
             ├── editor/         # Milkdown 集成
+            │   ├── createMilkdown.js  # 编辑器工厂（插件装配）
+            │   ├── Editor.jsx         # React 封装
+            │   ├── mermaidPreview.js  # Mermaid SVG 预览
+            │   ├── modes.js           # Focus/Typewriter 模式
+            │   └── slashMenu.js       # 斜杠命令菜单
             ├── components/     # UI 组件
             ├── utils/          # 大纲/字数/导出工具
             └── styles/         # 主题与样式
@@ -109,6 +134,8 @@ npm run dev
 ## 已知限制与后续规划
 
 - 未签名构建首次打开可能触发 Gatekeeper 提示，本机构建一般可正常运行；如遇「已损坏」，执行 `xattr -cr /Applications/Typora\ Dev.app`。
-- 查找匹配当前在文档源码层计数与替换，暂未在编辑器内做高亮滚动（v2 计划）。
-- 标签切换会重建编辑器实例，跨标签的撤销历史不保留（v1 取舍）。
-- 规划中：图片拖拽/粘贴、KaTeX 数学公式、代码高亮、Mermaid 流程图、Focus/Typewriter 模式、脚注、目录索引、命令面板、拼写检查、PDF 高级选项、签名与公证 CI。
+- 查找匹配当前在文档源码层计数与替换，暂未在编辑器内做高亮滚动。
+- 标签切换会重建编辑器实例，跨标签的撤销历史不保留。
+- Mermaid 图表以代码块下方的 SVG 预览呈现，代码块本身可继续编辑（非专用图形节点）。
+- Emoji 渲染为原生字符（非彩色 twemoji），为规避 CSP 拦截与外部 CDN 依赖的取舍。
+- 规划中：脚注、目录索引、命令面板、PDF 高级选项、图片粘贴的相对路径引用、签名与公证 CI。

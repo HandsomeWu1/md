@@ -1,5 +1,7 @@
 'use strict';
-const { ipcMain, dialog, BrowserWindow, nativeTheme } = require('electron');
+const { ipcMain, dialog, BrowserWindow, nativeTheme, app } = require('electron');
+const fs = require('fs');
+const path = require('path');
 const fileService = require('./file-service');
 const { exportHtml, exportPdf } = require('./export-service');
 const { settingsStore } = require('./store');
@@ -77,6 +79,23 @@ function registerIpc() {
   ipcMain.handle('file:delete', safe((p) => { fileService.deletePath(p); return {}; }));
   ipcMain.handle('file:list-tree', safe((root) => ({ tree: fileService.listTree(root) })));
   ipcMain.handle('file:reveal', safe((p) => { fileService.reveal(p); return {}; }));
+
+  // ---------- 图片保存（拖拽/粘贴图片时） ----------
+  const IMAGE_EXTS = new Set(['.png', '.jpg', '.jpeg', '.gif', '.webp', '.svg', '.bmp', '.avif']);
+  ipcMain.handle('image:save', (_e, data, name) => {
+    try {
+      const dir = path.join(app.getPath('userData'), 'images');
+      fs.mkdirSync(dir, { recursive: true });
+      let ext = (path.extname(name || '') || '.png').toLowerCase();
+      if (!IMAGE_EXTS.has(ext)) ext = '.png';
+      const safeName = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}${ext}`;
+      const filePath = path.join(dir, safeName);
+      fs.writeFileSync(filePath, Buffer.from(data));
+      return { ok: true, path: filePath, url: 'file://' + filePath };
+    } catch (err) {
+      return { ok: false, error: err.message };
+    }
+  });
 
   // ---------- 导出 ----------
   ipcMain.handle('export:html', async (e, html, name) => {
