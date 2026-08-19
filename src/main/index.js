@@ -63,8 +63,8 @@ function createWindow() {
     },
   });
 
-  // 启用拼写检查（英文优先；中文拼写检查依赖系统词典，macOS 原生支持）。
-  mainWindow.webContents.session.setSpellCheckerLanguages(['en-US']).catch(() => {});
+  // macOS 上使用系统自带的拼写检查器（自动检测语言），无需手动调用 setSpellCheckerLanguages。
+  // （setSpellCheckerLanguages 是同步方法、在 macOS 上是 no-op，之前误写成 .catch() 导致启动崩溃。）
 
   // 安全加固：禁止页面导航离开应用、禁止 window.open / webview
   mainWindow.webContents.on('will-navigate', (event) => event.preventDefault());
