@@ -23,6 +23,17 @@ function log(...args) {
   }
 }
 
+// 尽早初始化日志（在 whenReady 之前），这样即使 whenReady 之前就崩，也能留下记录。
+try {
+  logFile = path.join(app.getPath('userData'), 'startup.log');
+  fs.mkdirSync(path.dirname(logFile), { recursive: true });
+} catch {
+  logFile = null;
+}
+log('===== PROCESS STARTED =====');
+log('electron:', process.versions.electron, 'node:', process.versions.node);
+log('platform:', process.platform, process.arch);
+
 // 全局异常兜底：任何未捕获异常都记录，避免「静默退出」无从排查。
 process.on('uncaughtException', (err) => {
   log('UNCAUGHT EXCEPTION:', err && err.stack ? err.stack : err);
@@ -38,7 +49,7 @@ function createWindow() {
     minWidth: 760,
     minHeight: 480,
     title: 'Typora Dev',
-    show: false,
+    show: true,
     backgroundColor: '#ffffff',
     titleBarStyle: 'hiddenInset',
     trafficLightPosition: { x: 16, y: 16 },
@@ -83,18 +94,8 @@ function createWindow() {
     mainWindow.loadFile(path.join(__dirname, '../../dist/renderer/index.html'));
   }
 
-  // 显示窗口：ready-to-show 触发时显示；同时加 3 秒超时兜底，
-  // 避免「渲染进程加载失败导致 ready-to-show 永不触发、窗口永不显示」。
-  let shown = false;
-  const doShow = () => {
-    if (shown || !mainWindow || mainWindow.isDestroyed()) return;
-    shown = true;
-    mainWindow.show();
-    log('WINDOW SHOWN');
-  };
-  mainWindow.once('ready-to-show', doShow);
-  setTimeout(doShow, 3000);
-
+  // 窗口已在构造时 show: true，这里只做加载结果日志。
+  mainWindow.webContents.on('did-finish-load', () => log('DID FINISH LOAD'));
   mainWindow.on('closed', () => {
     mainWindow = null;
   });
@@ -121,10 +122,8 @@ app.on('open-file', (event, filePath) => {
 
 app.whenReady().then(() => {
   try {
-    logFile = path.join(app.getPath('userData'), 'startup.log');
-    log('===== APP START =====');
+    log('===== WHEN READY =====');
     log('app version:', app.getVersion());
-    log('platform:', process.platform, process.arch);
     log('cwd:', process.cwd());
     log('__dirname:', __dirname);
 
@@ -132,8 +131,11 @@ app.whenReady().then(() => {
     nativeTheme.themeSource = settings.theme === 'dark' ? 'dark' : 'light';
 
     buildMenu(() => mainWindow);
+    log('menu built');
     registerIpc();
+    log('ipc registered');
     createWindow();
+    log('createWindow called, mainWindow =', mainWindow ? 'ok' : 'null');
     sendPendingFile();
   } catch (err) {
     log('WHEN_READY ERROR:', err && err.stack ? err.stack : err);
