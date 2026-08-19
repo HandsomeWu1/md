@@ -11,6 +11,7 @@ export function installMockApi() {
     openFileDialog: async () => ({ canceled: true }),
     openFolderDialog: async () => ({ canceled: true }),
     saveFileDialog: async () => ({ canceled: true, filePath: null }),
+    confirmClose: async () => ({ response: 1 }),
     openPath: async (p) => ({ ok: true, filePath: p, content: memory.get(p) ?? '' }),
     readFile: async (p) => ({ ok: true, content: memory.get(p) ?? '' }),
     writeFile: async (p, content) => {

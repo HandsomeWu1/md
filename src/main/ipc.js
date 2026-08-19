@@ -60,6 +60,20 @@ function registerIpc() {
     return { canceled, filePath };
   });
 
+  // 关闭未保存标签时的确认：返回 0=保存, 1=不保存, 2=取消
+  ipcMain.handle('dialog:confirm-close', async (e, name) => {
+    const win = getWin(e);
+    const { response } = await dialog.showMessageBox(win, {
+      type: 'warning',
+      buttons: ['保存', '不保存', '取消'],
+      defaultId: 0,
+      cancelId: 2,
+      message: `是否保存对「${name}」的更改？`,
+      detail: '如果不保存，你的更改将丢失。',
+    });
+    return { response };
+  });
+
   // 通过路径直接打开（最近文件 / Finder 拖入），授权并读取
   ipcMain.handle('dialog:open-path', async (_e, p) => {
     try {

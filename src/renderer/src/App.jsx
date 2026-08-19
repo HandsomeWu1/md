@@ -28,6 +28,7 @@ export default function App() {
   const [sidebarMode, setSidebarMode] = useState('files');
   const [folderRoot, setFolderRoot] = useState(null);
   const [fileTree, setFileTree] = useState([]);
+  const [childrenMap, setChildrenMap] = useState({});
   const [expanded, setExpanded] = useState(() => new Set());
   const [recentFiles, setRecentFiles] = useState([]);
   const [search, setSearch] = useState({
@@ -73,6 +74,14 @@ export default function App() {
     if (!p) return;
     const list = await api.addRecentFile(p);
     setRecentFiles(list || []);
+  }, []);
+
+  // 惰性加载某目录的一层子项
+  const loadChildren = useCallback(async (dirPath) => {
+    const res = await api.listTree(dirPath);
+    if (res.ok) {
+      setChildrenMap((prev) => ({ ...prev, [dirPath]: res.tree || [] }));
+    }
   }, []);
 
   // ---------- 打开 / 新建 ----------
@@ -122,6 +131,9 @@ export default function App() {
     const res = await api.openFolderDialog();
     if (res.canceled || !res.folderPath) return;
     setFolderRoot(res.folderPath);
+    // 重置展开/子项缓存，避免残留上一个文件夹的数据
+    setExpanded(new Set());
+    setChildrenMap({});
     const treeRes = await api.listTree(res.folderPath);
     setFileTree(treeRes.ok ? treeRes.tree || [] : []);
     setSidebarOpen(true);
@@ -142,20 +154,126 @@ export default function App() {
     [openPath]
   );
 
+  // ---------- 文件树操作：新建文件/文件夹、重命名、删除 ----------
+  const newFileInDir = useCallback(
+    async (dirPath) => {
+      const dir = dirPath || folderRoot;
+      if (!dir) return openFolderDialog();
+      const name = window.prompt('请输入文件名（如 notes.md）：', 'untitled.md');
+      if (!name) return;
+      const res = await api.createFile(dir, name);
+      if (res.ok) {
+        await loadChildren(dir);
+        // 若该目录是展开的根，刷新顶层
+        if (dir === folderRoot) {
+          const treeRes = await api.listTree(dir);
+          if (treeRes.ok) setFileTree(treeRes.tree || []);
+        }
+        // 直接打开新建的 md 文件
+        if (/\.(md|markdown|mdown|txt)$/i.test(res.path)) {
+          await openPath(res.path);
+        }
+      }
+    },
+    [folderRoot, openFolderDialog, loadChildren, openPath]
+  );
+
+  const newFolderInDir = useCallback(
+    async (dirPath) => {
+      const dir = dirPath || folderRoot;
+      if (!dir) return openFolderDialog();
+      const name = window.prompt('请输入文件夹名：', '新建文件夹');
+      if (!name) return;
+      const res = await api.createFolder(dir, name);
+      if (res.ok) {
+        await loadChildren(dir);
+        if (dir === folderRoot) {
+          const treeRes = await api.listTree(dir);
+          if (treeRes.ok) setFileTree(treeRes.tree || []);
+        }
+        // 展开父目录
+        setExpanded((prev) => new Set(prev).add(dir));
+      }
+    },
+    [folderRoot, openFolderDialog, loadChildren]
+  );
+
+  const renamePath = useCallback(
+    async (p, isDir) => {
+      const name = window.prompt('请输入新名称：', p.split('/').pop());
+      if (!name || name === p.split('/').pop()) return;
+      const dir = p.slice(0, p.lastIndexOf('/'));
+      const newPath = dir + '/' + name;
+      const res = await api.rename(p, newPath);
+      if (res.ok) {
+        await loadChildren(dir);
+        if (dir === folderRoot) {
+          const treeRes = await api.listTree(dir);
+          if (treeRes.ok) setFileTree(treeRes.tree || []);
+        }
+        // 若重命名的文件正打开着，更新标签路径
+        setTabs((prev) => prev.map((t) => (t.path === p ? { ...t, path: newPath, name } : t)));
+      }
+    },
+    [folderRoot, loadChildren]
+  );
+
+  const deletePath = useCallback(
+    async (p, isDir) => {
+      const confirmText = isDir
+        ? `确定删除文件夹「${p.split('/').pop()}」及其所有内容吗？此操作不可撤销。`
+        : `确定删除文件「${p.split('/').pop()}」吗？此操作不可撤销。`;
+      if (!window.confirm(confirmText)) return;
+      const res = await api.deletePath(p);
+      if (res.ok) {
+        const dir = p.slice(0, p.lastIndexOf('/'));
+        await loadChildren(dir);
+        if (dir === folderRoot) {
+          const treeRes = await api.listTree(dir);
+          if (treeRes.ok) setFileTree(treeRes.tree || []);
+        }
+        // 关闭被删除文件的标签
+        setTabs((prev) => prev.filter((t) => t.path !== p));
+      }
+    },
+    [folderRoot, loadChildren]
+  );
+
   // ---------- 关闭 / 切换标签 ----------
   const closeTab = useCallback(async (id) => {
+    const t = tabsRef.current.find((x) => x.id === id);
+    if (!t) return;
+
+    // 未保存时，弹「保存/不保存/取消」确认框
+    if (t.dirty) {
+      const res = await api.confirmClose(t.name || '未命名');
+      if (res.response === 2) return; // 取消：不关闭
+      if (res.response === 0) {
+        // 保存后再关闭
+        if (t.path) {
+          const w = await api.writeFile(t.path, t.markdown);
+          if (!w.ok) return; // 保存失败则不关闭
+        } else {
+          // 无路径：弹另存为
+          const name = (t.name || '未命名') + '.md';
+          const sv = await api.saveFileDialog(name);
+          if (sv.canceled || !sv.filePath) return;
+          const w = await api.writeFile(sv.filePath, t.markdown);
+          if (!w.ok) return;
+          addRecent(sv.filePath);
+        }
+      }
+      // response === 1 表示「不保存」，直接继续关闭
+    }
+
     const idx = tabsRef.current.findIndex((x) => x.id === id);
-    const t = tabsRef.current[idx];
     const remaining = tabsRef.current.filter((x) => x.id !== id);
     setTabs(remaining);
     if (activeTabIdRef.current === id) {
       const nextActive = remaining[Math.min(idx, remaining.length - 1)];
       setActiveTabId(nextActive ? nextActive.id : null);
     }
-    if (t && t.dirty && t.path) {
-      await api.writeFile(t.path, t.markdown);
-    }
-  }, []);
+  }, [addRecent]);
 
   const switchTab = useCallback((id) => {
     if (id !== activeTabIdRef.current) setActiveTabId(id);
@@ -376,22 +494,37 @@ export default function App() {
   }, []);
 
   // ---------- 渲染 ----------
+  const handleToggleExpand = useCallback(
+    (p) => {
+      setExpanded((prev) => {
+        const next = new Set(prev);
+        if (next.has(p)) {
+          next.delete(p);
+        } else {
+          next.add(p);
+          // 展开时惰性加载子项
+          if (childrenMap[p] == null) loadChildren(p);
+        }
+        return next;
+      });
+    },
+    [childrenMap, loadChildren]
+  );
+
   const sidebarContent =
     sidebarMode === 'files' ? (
       <FileTree
         tree={fileTree}
         expanded={expanded}
-        onToggleExpand={(p) =>
-          setExpanded((prev) => {
-            const next = new Set(prev);
-            if (next.has(p)) next.delete(p);
-            else next.add(p);
-            return next;
-          })
-        }
+        childrenMap={childrenMap}
         activePath={activeTab?.path || null}
         onSelectFile={selectFile}
+        onToggleExpand={handleToggleExpand}
         onOpenFolder={openFolderDialog}
+        onNewFile={newFileInDir}
+        onNewFolder={newFolderInDir}
+        onRename={renamePath}
+        onDelete={deletePath}
         rootName={folderRoot ? folderRoot.split('/').pop() : null}
       />
     ) : (

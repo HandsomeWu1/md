@@ -40,6 +40,8 @@ function grantFile(file) {
   grantedFiles.add(normalize(file));
 }
 
+// 惰性加载：只列出一层目录内容（不递归）。
+// 之前递归遍历整个树（包括 node_modules 等大目录）会导致打开文件夹时卡死或权限错误。
 function listTree(root) {
   requireAllowed(root);
   return fs
@@ -48,9 +50,7 @@ function listTree(root) {
     .map((d) => {
       const full = path.join(root, d.name);
       const isDir = d.isDirectory();
-      const node = { name: d.name, path: full, type: isDir ? 'dir' : 'file' };
-      if (isDir) node.children = listTree(full);
-      return node;
+      return { name: d.name, path: full, type: isDir ? 'dir' : 'file' };
     })
     .sort((a, b) => {
       if (a.type !== b.type) return a.type === 'dir' ? -1 : 1;

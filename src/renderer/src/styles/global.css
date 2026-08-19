@@ -708,11 +708,80 @@ body {
   color: var(--accent);
 }
 .filetree-label {
+  flex: 1;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 .filetree-children {
   /* 缩进由 row 的 paddingLeft 控制 */
+}
+.filetree-loading,
+.filetree-empty-dir {
+  padding: 3px 8px 3px 34px;
+  font-size: 12px;
+  color: var(--text-muted);
+  user-select: none;
+}
+.filetree-actions {
+  flex: 0 0 auto;
+  opacity: 0;
+  transition: opacity 0.1s ease;
+}
+.filetree-row:hover .filetree-actions {
+  opacity: 1;
+}
+.filetree-actions button {
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  width: 18px;
+  height: 18px;
+  border-radius: 4px;
+  font-size: 13px;
+  line-height: 1;
+  padding: 0;
+}
+.filetree-actions button:hover {
+  background: var(--bg-active);
+  color: var(--text);
+}
+.filetree-menu {
+  position: fixed;
+  z-index: 3000;
+  min-width: 140px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: var(--shadow);
+  padding: 4px;
+}
+.filetree-menu button {
+  display: block;
+  width: 100%;
+  text-align: left;
+  border: none;
+  background: transparent;
+  color: var(--text);
+  padding: 6px 12px;
+  border-radius: 5px;
+  font-size: 13px;
+  cursor: pointer;
+  font-family: var(--editor-font);
+}
+.filetree-menu button:hover {
+  background: var(--bg-hover);
+}
+.filetree-menu button.danger {
+  color: #d33;
+}
+.filetree-menu button.danger:hover {
+  background: rgba(221, 51, 51, 0.1);
+}
+.filetree-menu-sep {
+  height: 1px;
+  background: var(--border);
+  margin: 4px 0;
 }
 .filetree-empty {
   display: flex;

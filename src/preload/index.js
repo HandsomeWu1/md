@@ -7,6 +7,7 @@ const api = {
   openFileDialog: () => ipcRenderer.invoke('dialog:open-file'),
   openFolderDialog: () => ipcRenderer.invoke('dialog:open-folder'),
   saveFileDialog: (name) => ipcRenderer.invoke('dialog:save-file', name),
+  confirmClose: (name) => ipcRenderer.invoke('dialog:confirm-close', name),
   openPath: (p) => ipcRenderer.invoke('dialog:open-path', p),
 
   // 文件

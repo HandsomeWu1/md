@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 
 function FolderIcon({ open }) {
   return (
@@ -18,10 +18,23 @@ function FileIcon() {
   );
 }
 
-function TreeNode({ node, depth, expanded, activePath, onSelectFile, onToggleExpand }) {
+function TreeNode({
+  node,
+  depth,
+  expanded,
+  childrenMap,
+  activePath,
+  onSelectFile,
+  onToggleExpand,
+  onNewFile,
+  onNewFolder,
+  onRename,
+  onDelete,
+}) {
   const isDir = node.type === 'dir';
   const isOpen = expanded.has(node.path);
   const isActive = !isDir && node.path === activePath;
+  const children = isDir && isOpen ? childrenMap[node.path] : null;
 
   const handleRowClick = () => {
     if (isDir) onToggleExpand(node.path);
@@ -47,20 +60,44 @@ function TreeNode({ node, depth, expanded, activePath, onSelectFile, onToggleExp
           {isDir ? <FolderIcon open={isOpen} /> : <FileIcon />}
         </span>
         <span className="filetree-label">{node.name}</span>
+        {isDir && (
+          <span className="filetree-actions">
+            <button
+              type="button"
+              title="新建文件"
+              onMouseDown={(e) => e.stopPropagation()}
+              onClick={(e) => { e.stopPropagation(); onNewFile(node.path); }}
+            >
+              ＋
+            </button>
+          </span>
+        )}
       </div>
-      {isDir && isOpen && node.children && (
+
+      {isDir && isOpen && (
         <div className="filetree-children">
-          {node.children.map((child) => (
-            <TreeNode
-              key={child.path}
-              node={child}
-              depth={depth + 1}
-              expanded={expanded}
-              activePath={activePath}
-              onSelectFile={onSelectFile}
-              onToggleExpand={onToggleExpand}
-            />
-          ))}
+          {children == null ? (
+            <div className="filetree-loading">加载中…</div>
+          ) : children.length === 0 ? (
+            <div className="filetree-empty-dir">空文件夹</div>
+          ) : (
+            children.map((child) => (
+              <TreeNode
+                key={child.path}
+                node={child}
+                depth={depth + 1}
+                expanded={expanded}
+                childrenMap={childrenMap}
+                activePath={activePath}
+                onSelectFile={onSelectFile}
+                onToggleExpand={onToggleExpand}
+                onNewFile={onNewFile}
+                onNewFolder={onNewFolder}
+                onRename={onRename}
+                onDelete={onDelete}
+              />
+            ))
+          )}
         </div>
       )}
     </div>
@@ -70,17 +107,45 @@ function TreeNode({ node, depth, expanded, activePath, onSelectFile, onToggleExp
 export default function FileTree({
   tree,
   expanded,
+  childrenMap,
   activePath,
   onSelectFile,
   onToggleExpand,
   onOpenFolder,
+  onNewFile,
+  onNewFolder,
+  onRename,
+  onDelete,
   rootName,
 }) {
+  const [menu, setMenu] = useState(null); // { x, y, path, isDir }
+
   const isEmpty = !tree || tree.length === 0;
+
+  const handleContextMenu = (e, path, isDir) => {
+    e.preventDefault();
+    setMenu({ x: e.clientX, y: e.clientY, path, isDir });
+  };
+
+  // 根节点右键菜单
+  const handleRootContextMenu = (e) => {
+    e.preventDefault();
+    setMenu({ x: e.clientX, y: e.clientY, path: null, isDir: true });
+  };
+
+  const closeMenu = () => setMenu(null);
+
+  // 点击其他区域关闭菜单
+  React.useEffect(() => {
+    if (!menu) return;
+    const onDown = () => closeMenu();
+    window.addEventListener('mousedown', onDown);
+    return () => window.removeEventListener('mousedown', onDown);
+  }, [menu]);
 
   if (isEmpty) {
     return (
-      <div className="filetree-empty">
+      <div className="filetree-empty" onContextMenu={handleRootContextMenu}>
         <button type="button" className="filetree-open-btn" onClick={onOpenFolder}>
           打开文件夹
         </button>
@@ -90,18 +155,51 @@ export default function FileTree({
   }
 
   return (
-    <div className="filetree">
+    <div className="filetree" onContextMenu={handleRootContextMenu}>
       {tree.map((node) => (
         <TreeNode
           key={node.path}
           node={node}
           depth={0}
           expanded={expanded}
+          childrenMap={childrenMap}
           activePath={activePath}
           onSelectFile={onSelectFile}
           onToggleExpand={onToggleExpand}
+          onNewFile={onNewFile}
+          onNewFolder={onNewFolder}
+          onRename={onRename}
+          onDelete={onDelete}
         />
       ))}
+
+      {/* 右键菜单 */}
+      {menu && (
+        <div
+          className="filetree-menu"
+          style={{ left: menu.x, top: menu.y }}
+          onMouseDown={(e) => e.stopPropagation()}
+        >
+          {menu.path != null ? (
+            <>
+              {menu.isDir && (
+                <>
+                  <button type="button" onClick={() => { onNewFile(menu.path); closeMenu(); }}>新建文件</button>
+                  <button type="button" onClick={() => { onNewFolder(menu.path); closeMenu(); }}>新建文件夹</button>
+                  <div className="filetree-menu-sep" />
+                </>
+              )}
+              <button type="button" onClick={() => { onRename(menu.path, menu.isDir); closeMenu(); }}>重命名</button>
+              <button type="button" className="danger" onClick={() => { onDelete(menu.path, menu.isDir); closeMenu(); }}>删除</button>
+            </>
+          ) : (
+            <>
+              <button type="button" onClick={() => { onNewFile(rootName || null); closeMenu(); }}>新建文件</button>
+              <button type="button" onClick={() => { onNewFolder(rootName || null); closeMenu(); }}>新建文件夹</button>
+            </>
+          )}
+        </div>
+      )}
     </div>
   );
 }
