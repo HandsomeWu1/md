@@ -53,6 +53,8 @@ export default function App() {
   tabsRef.current = tabs;
   const activeTabIdRef = useRef(activeTabId);
   activeTabIdRef.current = activeTabId;
+  const expandedRef = useRef(expanded);
+  expandedRef.current = expanded;
 
   const theme = settings.theme;
   const activeTab = tabs.find((t) => t.id === activeTabId) || null;
@@ -83,6 +85,22 @@ export default function App() {
       setChildrenMap((prev) => ({ ...prev, [dirPath]: res.tree || [] }));
     }
   }, []);
+
+  // 刷新整个文件树（顶层 + 所有已展开目录）
+  const refreshTree = useCallback(async () => {
+    if (!folderRoot) return;
+    const treeRes = await api.listTree(folderRoot);
+    if (treeRes.ok) setFileTree(treeRes.tree || []);
+    const dirs = Array.from(expandedRef.current);
+    const newMap = {};
+    await Promise.all(
+      dirs.map(async (dir) => {
+        const res = await api.listTree(dir);
+        if (res.ok) newMap[dir] = res.tree || [];
+      })
+    );
+    setChildrenMap((prev) => ({ ...prev, ...newMap }));
+  }, [folderRoot]);
 
   // ---------- 打开 / 新建 ----------
   const createTab = useCallback((payload) => {
@@ -160,8 +178,10 @@ export default function App() {
     async (dirPath) => {
       const dir = dirPath || folderRoot;
       if (!dir) return openFolderDialog();
-      const name = window.prompt('请输入文件名（如 notes.md）：', 'untitled.md');
+      let name = window.prompt('创建 md 文件，请输入文件名：', 'untitled.md');
       if (!name) return;
+      // 若用户没写 .md 后缀，自动补上
+      if (!/\.(md|markdown|mdown|txt)$/i.test(name)) name += '.md';
       const res = await api.createFile(dir, name);
       if (res.ok) {
         await loadChildren(dir);
@@ -303,9 +323,11 @@ export default function App() {
       if (w.ok) {
         updateTab(id, { path: res.filePath, name: baseName(res.filePath), dirty: false, savedAt: w.savedAt });
         addRecent(res.filePath);
+        // 保存后刷新文件树，让新文件立即显示
+        await refreshTree();
       }
     },
-    [updateTab, addRecent]
+    [updateTab, addRecent, refreshTree]
   );
 
   const doSave = useCallback(
@@ -526,6 +548,7 @@ export default function App() {
         onNewFolder={newFolderInDir}
         onRename={renamePath}
         onDelete={deletePath}
+        onRefresh={refreshTree}
         rootName={folderRoot ? folderRoot.split('/').pop() : null}
       />
     ) : (

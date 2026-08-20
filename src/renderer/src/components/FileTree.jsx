@@ -116,6 +116,7 @@ export default function FileTree({
   onNewFolder,
   onRename,
   onDelete,
+  onRefresh,
   rootName,
 }) {
   const [menu, setMenu] = useState(null); // { x, y, path, isDir }
@@ -184,18 +185,20 @@ export default function FileTree({
             <>
               {menu.isDir && (
                 <>
-                  <button type="button" onClick={() => { onNewFile(menu.path); closeMenu(); }}>新建文件</button>
-                  <button type="button" onClick={() => { onNewFolder(menu.path); closeMenu(); }}>新建文件夹</button>
+                  <button type="button" onClick={() => { onNewFile(menu.path); closeMenu(); }}>创建 md 文件</button>
+                  <button type="button" onClick={() => { onNewFolder(menu.path); closeMenu(); }}>创建文件夹</button>
                   <div className="filetree-menu-sep" />
                 </>
               )}
+              <button type="button" onClick={() => { onRefresh(menu.path); closeMenu(); }}>刷新</button>
               <button type="button" onClick={() => { onRename(menu.path, menu.isDir); closeMenu(); }}>重命名</button>
               <button type="button" className="danger" onClick={() => { onDelete(menu.path, menu.isDir); closeMenu(); }}>删除</button>
             </>
           ) : (
             <>
-              <button type="button" onClick={() => { onNewFile(rootName || null); closeMenu(); }}>新建文件</button>
-              <button type="button" onClick={() => { onNewFolder(rootName || null); closeMenu(); }}>新建文件夹</button>
+              <button type="button" onClick={() => { onNewFile(rootName || null); closeMenu(); }}>创建 md 文件</button>
+              <button type="button" onClick={() => { onNewFolder(rootName || null); closeMenu(); }}>创建文件夹</button>
+              <button type="button" onClick={() => { onRefresh(rootName || null); closeMenu(); }}>刷新</button>
             </>
           )}
         </div>

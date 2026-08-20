@@ -1,5 +1,21 @@
 // 纯函数：从 markdown 文本提取大纲、统计字数、执行查找/替换。
 
+// 去除行内 markdown 格式符号，让大纲显示纯文本（如 `DescribeTrainingTaskPod` → DescribeTrainingTaskPod）。
+export function stripInlineMarkdown(text) {
+  if (!text) return '';
+  return text
+    .replace(/`([^`]*)`/g, '$1') // 行内代码
+    .replace(/!\[([^\]]*)\]\([^)]*\)/g, '$1') // 图片
+    .replace(/\[([^\]]*)\]\([^)]*\)/g, '$1') // 链接
+    .replace(/\*\*([^*]+)\*\*/g, '$1') // 加粗
+    .replace(/__([^_]+)__/g, '$1') // 加粗（下划线）
+    .replace(/(^|[^*])\*([^*]+)\*/g, '$1$2') // 斜体
+    .replace(/(^|[^_])_([^_]+)_/g, '$1$2') // 斜体（下划线）
+    .replace(/~~([^~]+)~~/g, '$1') // 删除线
+    .replace(/\\([\\`*{}[\]()#+\-.!_>])/g, '$1') // 转义字符
+    .trim();
+}
+
 export function extractOutline(markdown) {
   const outline = [];
   if (!markdown) return outline;
@@ -7,7 +23,7 @@ export function extractOutline(markdown) {
   for (const line of lines) {
     const m = /^(#{1,6})\s+(.*)$/.exec(line);
     if (m) {
-      outline.push({ level: m[1].length, text: m[2].trim() });
+      outline.push({ level: m[1].length, text: stripInlineMarkdown(m[2]) });
     }
   }
   return outline;

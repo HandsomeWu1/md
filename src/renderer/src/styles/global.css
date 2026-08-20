@@ -1175,6 +1175,62 @@ body {
   font-size: 12px;
 }
 
+/* ===== 代码块语言标签 + 语言选择菜单 ===== */
+.code-lang-label {
+  display: inline-block;
+  margin: 0.4em 0 0.2em;
+  padding: 2px 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--code-bg);
+  color: var(--text-muted);
+  font-size: 11px;
+  font-family: var(--mono-font);
+  cursor: pointer;
+  user-select: none;
+  line-height: 1.4;
+}
+.code-lang-label:hover {
+  color: var(--accent);
+  border-color: var(--accent);
+}
+.code-lang-menu {
+  position: fixed;
+  z-index: 4000;
+  max-height: 320px;
+  overflow-y: auto;
+  min-width: 160px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: var(--shadow);
+  padding: 4px;
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 2px;
+}
+.code-lang-item {
+  display: block;
+  border: none;
+  background: transparent;
+  color: var(--text-secondary);
+  text-align: left;
+  padding: 5px 10px;
+  border-radius: 5px;
+  font-size: 12px;
+  font-family: var(--mono-font);
+  cursor: pointer;
+  white-space: nowrap;
+}
+.code-lang-item:hover {
+  background: var(--bg-hover);
+  color: var(--text);
+}
+.code-lang-item.active {
+  background: var(--bg-active);
+  color: var(--accent);
+}
+
 /* ===== 输入弹窗（链接/图片） ===== */
 .modal-overlay {
   position: fixed;
