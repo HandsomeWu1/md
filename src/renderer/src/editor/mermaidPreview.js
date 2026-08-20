@@ -22,6 +22,7 @@ function escapeHtml(s) {
 
 function renderInto(el, code) {
   const id = `mmd-${Date.now()}-${++counter}`;
+  el.innerHTML = '';
   mermaid
     .render(id, code)
     .then(({ svg }) => {
@@ -32,60 +33,120 @@ function renderInto(el, code) {
     });
 }
 
-function buildDecorations(doc) {
+// mermaid 块的 widget：默认显示 SVG，双击/点「编辑」按钮切到 textarea 源码编辑。
+function makeWidget(getPos, view) {
+  const wrapper = document.createElement('div');
+  wrapper.className = 'mermaid-block';
+
+  const preview = document.createElement('div');
+  preview.className = 'mermaid-preview';
+
+  const toolbar = document.createElement('div');
+  toolbar.className = 'mermaid-toolbar';
+  const editBtn = document.createElement('button');
+  editBtn.type = 'button';
+  editBtn.className = 'mermaid-edit-btn';
+  editBtn.textContent = '编辑源码';
+  toolbar.appendChild(editBtn);
+
+  const source = document.createElement('textarea');
+  source.className = 'mermaid-source';
+  source.spellcheck = false;
+  source.rows = 6;
+
+  const doneBar = document.createElement('div');
+  doneBar.className = 'mermaid-done-bar';
+  const doneBtn = document.createElement('button');
+  doneBtn.type = 'button';
+  doneBtn.className = 'mermaid-done-btn';
+  doneBtn.textContent = '完成';
+  doneBar.appendChild(doneBtn);
+
+  const render = () => {
+    const pos = getPos();
+    const node = view.state.doc.nodeAt(pos);
+    const code = node ? node.textContent : '';
+    source.value = code;
+    wrapper.innerHTML = '';
+    wrapper.appendChild(preview);
+    wrapper.appendChild(toolbar);
+    renderInto(preview, code);
+  };
+
+  editBtn.addEventListener('click', (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const pos = getPos();
+    const node = view.state.doc.nodeAt(pos);
+    if (!node) return;
+    source.value = node.textContent;
+    wrapper.innerHTML = '';
+    wrapper.appendChild(source);
+    wrapper.appendChild(doneBar);
+    setTimeout(() => source.focus(), 0);
+  });
+
+  doneBtn.addEventListener('click', (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const pos = getPos();
+    const node = view.state.doc.nodeAt(pos);
+    if (!node) return render();
+    const newCode = source.value;
+    if (newCode === node.textContent) return render();
+    // 用新代码替换原 code_block
+    const newNode = node.copy(view.state.schema.text(newCode));
+    view.dispatch(
+      view.state.tr.replaceWith(pos, pos + node.nodeSize, newNode)
+    );
+    // 替换后原 decoration 会被 apply 重建，render() 由新 widget 触发
+  });
+
+  // 双击预览区进入编辑
+  preview.addEventListener('dblclick', (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    editBtn.click();
+  });
+
+  render();
+  return wrapper;
+}
+
+function buildDecorations(view) {
   const decos = [];
-  doc.descendants((node, pos) => {
+  view.state.doc.descendants((node, pos) => {
     if (node.type.name === 'code_block' && node.attrs.language === 'mermaid') {
-      const code = node.textContent;
       decos.push(
-        Decoration.widget(
+        Decoration.replace(
+          pos,
           pos + node.nodeSize,
-          () => {
-            const div = document.createElement('div');
-            div.className = 'mermaid-preview';
-            div.dataset.code = code;
-            return div;
-          },
-          { side: 1, key: `mermaid:${code}` }
+          (view2, getPos) => makeWidget(getPos, view2),
+          { key: `mermaid:${pos}` }
         )
       );
     }
   });
-  return DecorationSet.create(doc, decos);
+  return DecorationSet.create(view.state.doc, decos);
 }
 
-// 在 language 为 mermaid 的代码块下方渲染 SVG 预览。
-// 代码块本身保持可编辑（普通 code_block），prism 负责语法高亮。
-export const mermaidPreview = $prose((ctx) => {
-  return new Plugin({
-    key,
-    state: {
-      init: (_, { doc }) => buildDecorations(doc),
-      apply: (tr, set) => {
-        if (!tr.docChanged) return set.map(tr.mapping, tr.doc);
-        return buildDecorations(tr.doc);
-      },
-    },
-    props: {
-      decorations(state) {
-        return this.getState(state);
-      },
-    },
-    view: (editorView) => {
-      const renderAll = () => {
-        const els = editorView.dom.querySelectorAll('.mermaid-preview:not(.rendered)');
-        els.forEach((el) => {
-          el.classList.add('rendered');
-          renderInto(el, el.dataset.code);
-        });
-      };
-      // widget 挂载后再渲染（此时 DOM 已进入文档）
-      setTimeout(renderAll, 0);
-      return {
-        update() {
-          setTimeout(renderAll, 0);
+export const mermaidPreview = $prose(
+  () =>
+    new Plugin({
+      key,
+      state: {
+        init: (_, state) => DecorationSet.empty,
+        apply(tr, set, oldState, newState) {
+          if (!tr.docChanged) return set.map(tr.mapping, tr.doc);
+          return set.map(tr.mapping, tr.doc);
         },
-      };
-    },
-  });
-});
+      },
+      props: {
+        decorations(state) {
+          const view = this.view;
+          if (!view) return DecorationSet.empty;
+          return buildDecorations(view);
+        },
+      },
+    })
+);

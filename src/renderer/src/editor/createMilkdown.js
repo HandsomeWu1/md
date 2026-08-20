@@ -21,6 +21,7 @@ import { taskListToggle } from './taskListToggle';
 import { codeBlockLanguage } from './codeBlockLanguage';
 import { codeBlockBackspace } from './codeBlockBackspace';
 import { headingBackspace } from './headingBackspace';
+import { linkInputRule } from './linkInputRule';
 import { nord } from '@milkdown/theme-nord';
 import '@milkdown/theme-nord/style.css';
 import '@milkdown/kit/prose/view/style/prosemirror.css';
@@ -132,6 +133,7 @@ export function createMilkdown(root, { defaultValue = '', onMarkdownUpdated, onS
     .use(cursor)
     .use(prism)
     .use(emojiPlugins)
+    .use(linkInputRule)
     .use(math)
     .use(upload)
     .use(mermaidPreview)

@@ -46,9 +46,8 @@ function Divider() {
 export default function Toolbar({ onAction, activeFormats = {} }) {
   const fileInputRef = useRef(null);
   const [linkOpen, setLinkOpen] = useState(false);
+  const [linkText, setLinkText] = useState('');
   const [linkHref, setLinkHref] = useState('');
-  const [imageOpen, setImageOpen] = useState(false);
-  const [imageSrc, setImageSrc] = useState('');
 
   // 段落下拉的受控值：反映当前光标所在段落类型
   const headingValue = activeFormats.heading
@@ -66,18 +65,12 @@ export default function Toolbar({ onAction, activeFormats = {} }) {
 
   const confirmLink = () => {
     if (linkHref.trim()) {
-      onAction('link', linkHref.trim());
+      // 把 URL 作为 href，显示文字用用户填的（缺省回退为 URL）
+      onAction('link', linkHref.trim(), linkText.trim() || linkHref.trim());
     }
     setLinkOpen(false);
     setLinkHref('');
-  };
-
-  const confirmImage = () => {
-    if (imageSrc.trim()) {
-      onAction('image', imageSrc.trim());
-    }
-    setImageOpen(false);
-    setImageSrc('');
+    setLinkText('');
   };
 
   // 本地文件选择 → 保存到本地 → 插入
@@ -88,8 +81,6 @@ export default function Toolbar({ onAction, activeFormats = {} }) {
       const res = await window.api.saveImage(new Uint8Array(buf), file.name);
       if (res.ok && res.url) {
         onAction('image', res.url);
-        setImageOpen(false);
-        setImageSrc('');
       }
     } catch {
       // 忽略单张图片失败
@@ -138,8 +129,21 @@ export default function Toolbar({ onAction, activeFormats = {} }) {
 
       <Divider />
 
-      <ToolButton title="插入链接" icon={ICONS.link} active={activeFormats.link} onClick={() => { setLinkHref(''); setLinkOpen(true); }} />
-      <ToolButton title="插入图片" icon={ICONS.image} onClick={() => { setImageSrc(''); setImageOpen(true); }} />
+      <ToolButton
+        title="插入链接"
+        icon={ICONS.link}
+        active={activeFormats.link}
+        onClick={() => {
+          setLinkHref('');
+          setLinkText('');
+          setLinkOpen(true);
+        }}
+      />
+      <ToolButton
+        title="插入图片（选择本地文件）"
+        icon={ICONS.image}
+        onClick={() => fileInputRef.current?.click()}
+      />
 
       {/* 隐藏的本地图片选择 */}
       <input
@@ -154,36 +158,22 @@ export default function Toolbar({ onAction, activeFormats = {} }) {
         }}
       />
 
-      {/* 链接弹窗 */}
+      {/* 链接弹窗：显示文字 + URL */}
       <InputDialog
         open={linkOpen}
         title="插入链接"
-        value={linkHref}
-        placeholder="https://example.com"
-        onChange={setLinkHref}
+        value={linkText}
+        placeholder="显示文字（如 百度）"
+        onChange={setLinkText}
         onConfirm={confirmLink}
-        onCancel={() => { setLinkOpen(false); setLinkHref(''); }}
+        onCancel={() => { setLinkOpen(false); setLinkHref(''); setLinkText(''); }}
+        secondField={{
+          value: linkHref,
+          placeholder: '链接地址（如 https://example.com）',
+          onChange: setLinkHref,
+        }}
       />
 
-      {/* 图片 URL 弹窗 */}
-      <InputDialog
-        open={imageOpen}
-        title="插入图片"
-        value={imageSrc}
-        placeholder="https://example.com/image.png"
-        onChange={setImageSrc}
-        onConfirm={confirmImage}
-        onCancel={() => { setImageOpen(false); setImageSrc(''); }}
-        extra={
-          <button
-            type="button"
-            className="modal-btn"
-            onClick={() => fileInputRef.current?.click()}
-          >
-            本地文件
-          </button>
-        }
-      />
     </div>
   );
 }

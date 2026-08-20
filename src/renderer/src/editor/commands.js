@@ -48,13 +48,16 @@ export const actions = {
   table: (editor) => editor.action(callCommand(insertTableCommand.key, { row: 3, col: 3 })),
   hr: (editor) => editor.action(callCommand(insertHrCommand.key)),
 
-  // 链接：有选区时给选区加链接；无选区时插入 [url](url) 文本。
-  link: (editor, href) =>
+  // 链接：
+  //  - 有选区时给选区加链接
+  //  - 无选区时插入 [text](url) 文本（text 可由 Toolbar 传入）
+  link: (editor, href, text) =>
     editor.action((ctx) => {
       const view = ctx.get(editorViewCtx);
       const { empty } = view.state.selection;
+      const label = text || href;
       if (empty) {
-        insert(`[${href}](${href})`)(ctx);
+        insert(`[${label}](${href})`)(ctx);
       } else {
         callCommand(toggleLinkCommand.key, { href })(ctx);
       }

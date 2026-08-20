@@ -101,8 +101,10 @@ function showTag(view, codeBlockPos, codeBlock) {
     document.body.appendChild(langTag);
   }
   langTag.textContent = lang || 'text';
-  langTag.style.left = rect.left + 6 + 'px';
-  langTag.style.top = rect.top + 6 + 'px';
+  // 紧贴代码块外左上角（不覆盖代码）
+  langTag.style.left = rect.left + 'px';
+  langTag.style.top = rect.top + 'px';
+  langTag.style.transform = 'translate(0, -100%)';
   langTag.style.display = 'block';
   langTag.onmousedown = (e) => {
     e.preventDefault();

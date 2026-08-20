@@ -1,27 +1,36 @@
 import React, { useEffect, useRef } from 'react';
 
 /**
- * 通用输入弹窗（替代 window.prompt），用于链接/图片地址输入。
- * @param {object} props
- * @param {boolean} open 是否显示
- * @param {string} title 标题
- * @param {string} value 输入值
- * @param {string} placeholder 占位提示
- * @param {(v:string)=>void} onChange 输入变化
- * @param {()=>void} onConfirm 确定
- * @param {()=>void} onCancel 取消
- * @param {ReactNode} extra 底部额外按钮（如「本地文件」）
+ * 通用输入弹窗（替代 window.prompt）。
+ * 支持单字段（value/placeholder）或双字段（secondField），用于链接（显示文字 + URL）。
  */
-export default function InputDialog({ open, title, value, placeholder, onChange, onConfirm, onCancel, extra }) {
-  const inputRef = useRef(null);
+export default function InputDialog({
+  open,
+  title,
+  value,
+  placeholder,
+  onChange,
+  onConfirm,
+  onCancel,
+  extra,
+  secondField, // { value, placeholder, onChange }
+}) {
+  const firstRef = useRef(null);
+  const secondRef = useRef(null);
 
   useEffect(() => {
     if (open) {
-      // 弹窗打开后聚焦输入框
-      const id = requestAnimationFrame(() => inputRef.current?.focus());
+      const id = requestAnimationFrame(() => {
+        if (secondField) {
+          // 双字段时聚焦到第一个（显示文字）
+          firstRef.current?.focus();
+        } else {
+          firstRef.current?.focus();
+        }
+      });
       return () => cancelAnimationFrame(id);
     }
-  }, [open]);
+  }, [open, secondField]);
 
   if (!open) return null;
 
@@ -35,17 +44,33 @@ export default function InputDialog({ open, title, value, placeholder, onChange,
       <div className="modal">
         <div className="modal-title">{title}</div>
         <input
-          ref={inputRef}
+          ref={firstRef}
           className="modal-input"
           type="text"
           value={value}
           placeholder={placeholder}
           onChange={(e) => onChange(e.target.value)}
           onKeyDown={(e) => {
-            if (e.key === 'Enter') onConfirm();
-            else if (e.key === 'Escape') onCancel();
+            if (e.key === 'Enter') {
+              if (secondField) secondRef.current?.focus();
+              else onConfirm();
+            } else if (e.key === 'Escape') onCancel();
           }}
         />
+        {secondField && (
+          <input
+            ref={secondRef}
+            className="modal-input"
+            type="text"
+            value={secondField.value}
+            placeholder={secondField.placeholder}
+            onChange={(e) => secondField.onChange(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') onConfirm();
+              else if (e.key === 'Escape') onCancel();
+            }}
+          />
+        )}
         <div className="modal-actions">
           {extra}
           <div className="modal-spacer" />
