@@ -484,11 +484,11 @@ export default function App() {
   }, []);
 
   // ---------- 工具栏动作 ----------
-  const runToolbarAction = useCallback((name, payload) => {
+  const runToolbarAction = useCallback((name, ...args) => {
     const editor = editorRef.current?.getEditor();
     if (!editor) return;
     const fn = actions[name];
-    if (fn) fn(editor, payload);
+    if (fn) fn(editor, ...args);
     // 命令执行后重新聚焦编辑器，确保光标可见
     setTimeout(() => editorRef.current?.focus(), 0);
   }, []);

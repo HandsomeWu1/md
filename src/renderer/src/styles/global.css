@@ -1116,6 +1116,7 @@ body {
   border: 1px solid var(--border);
   border-radius: 8px;
   background: var(--bg-elevated);
+  min-height: 90px;
 }
 .mermaid-toolbar {
   position: absolute;
@@ -1140,6 +1141,8 @@ body {
   color: var(--accent);
   border-color: var(--accent);
 }
+/* 源码编辑区（contentDOM）：默认移出视野隐藏，编辑模式时回到正常位置。
+   不能用 display:none，否则 ProseMirror 无法维护内容/选区。 */
 .mermaid-editor {
   width: 100%;
   min-height: 90px;
@@ -1155,13 +1158,25 @@ body {
   white-space: pre-wrap;
   word-break: break-all;
 }
+.mermaid-block[data-mode='preview'] .mermaid-editor {
+  position: absolute;
+  left: -99999px;
+  top: 0;
+  width: calc(100% - 2em);
+}
+.mermaid-block[data-mode='edit'] .mermaid-editor {
+  position: static;
+}
 .mermaid-editor:focus {
   border-color: var(--accent);
 }
 .mermaid-done-bar {
-  display: flex;
+  display: none;
   justify-content: flex-end;
   margin-top: 8px;
+}
+.mermaid-block[data-mode='edit'] .mermaid-done-bar {
+  display: flex;
 }
 .mermaid-done-btn {
   border: 1px solid var(--accent);
@@ -1180,6 +1195,12 @@ body {
   text-align: center;
   user-select: none;
   min-height: 60px;
+}
+.mermaid-block[data-mode='edit'] .mermaid-preview {
+  display: none;
+}
+.mermaid-block[data-mode='edit'] .mermaid-toolbar {
+  display: none;
 }
 .mermaid-preview svg {
   max-width: 100%;

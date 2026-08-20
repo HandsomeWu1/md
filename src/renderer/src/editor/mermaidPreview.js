@@ -32,15 +32,18 @@ function renderInto(el, code) {
 }
 
 /**
- * mermaid 代码块 NodeView：
- *  - 预览模式：显示 SVG 渲染图 + 右上角「编辑源码」按钮（代码隐藏）
- *  - 编辑模式：显示可编辑源码输入区（contentDOM）+「完成」按钮
+ * mermaid 代码块 NodeView。
+ *  - 预览模式（默认）：显示 SVG 渲染图 + 右上角「编辑源码」按钮，源码（contentDOM）移出视野隐藏
+ *  - 编辑模式：显示源码输入区（contentDOM）+「完成」按钮，预览图隐藏
  *  - 双击预览图 / 点「编辑源码」→ 编辑模式；点「完成」→ 预览模式
  *  - 刚插入的空 mermaid 块直接进入编辑模式
  *
- * 关键：必须实现 ignoreMutation，忽略 contentDOM（editor）之外的 DOM 变化，
- * 否则 renderInto 修改 preview 会触发 ProseMirror MutationObserver →
- * 标记节点 dirty → 重渲染 → update() → renderInto 的死循环（表现为卡死）。
+ * 关键实现点（ProseMirror 自定义 NodeView 踩坑总结）：
+ *  1. contentDOM 绝不能用 display:none 隐藏，否则 ProseMirror 无法维护其内容/选区，
+ *     切回编辑时源码会丢失。这里用 position:absolute + left:-99999px 移出视野。
+ *  2. 必须实现 ignoreMutation，忽略 contentDOM 之外的 DOM 变化（renderInto 改 preview 会
+ *     被 MutationObserver 捕获，否则触发「mutation→重渲染→renderInto→mutation」死循环）。
+ *  3. 必须实现 stopEvent，让按钮上的事件不冒泡给 ProseMirror。
  */
 class MermaidBlockView {
   constructor(node, view, getPos) {
@@ -50,6 +53,12 @@ class MermaidBlockView {
 
     this.dom = document.createElement('div');
     this.dom.className = 'mermaid-block';
+    this.dom.dataset.mode = 'preview';
+
+    // 源码编辑区（contentDOM，ProseMirror 管理内容）
+    this.editor = document.createElement('div');
+    this.editor.className = 'mermaid-editor';
+    this.editor.spellcheck = false;
 
     // 预览区（SVG）
     this.preview = document.createElement('div');
@@ -64,12 +73,6 @@ class MermaidBlockView {
     this.editBtn.textContent = '编辑源码';
     this.toolbar.appendChild(this.editBtn);
 
-    // 编辑区（contentDOM，ProseMirror 管理内容）
-    this.editor = document.createElement('div');
-    this.editor.className = 'mermaid-editor';
-    this.editor.setAttribute('data-gramm', 'false');
-    this.editor.spellcheck = false;
-
     // 完成按钮
     this.doneBar = document.createElement('div');
     this.doneBar.className = 'mermaid-done-bar';
@@ -79,23 +82,22 @@ class MermaidBlockView {
     this.doneBtn.textContent = '完成';
     this.doneBar.appendChild(this.doneBtn);
 
+    this.dom.appendChild(this.editor);
     this.dom.appendChild(this.preview);
     this.dom.appendChild(this.toolbar);
-    this.dom.appendChild(this.editor);
     this.dom.appendChild(this.doneBar);
 
-    this.mode = 'preview';
     this.renderTimer = null;
 
     this.editBtn.addEventListener('mousedown', (e) => {
       e.preventDefault();
       e.stopPropagation();
-      this.showEditor(true);
+      this.showEditor();
     });
     this.preview.addEventListener('dblclick', (e) => {
       e.preventDefault();
       e.stopPropagation();
-      this.showEditor(true);
+      this.showEditor();
     });
     this.doneBtn.addEventListener('mousedown', (e) => {
       e.preventDefault();
@@ -103,54 +105,45 @@ class MermaidBlockView {
       this.showPreview();
     });
 
-    // 初始状态
+    // 初始状态：空则编辑模式，非空则预览模式
     if (node.textContent.trim() === '') {
-      this.showEditor(true);
+      this.showEditor();
     } else {
       this.showPreview();
     }
   }
 
-  // contentDOM：ProseMirror 用它编辑 code_block 的文本内容
   get contentDOM() {
     return this.editor;
   }
 
-  // 关键：忽略 contentDOM（editor）之外的 DOM 变化，避免 renderInto 触发的死循环
+  // 按钮上的事件不冒泡给 ProseMirror
+  stopEvent(event) {
+    return this.editBtn.contains(event.target) || this.doneBtn.contains(event.target);
+  }
+
+  // 忽略 contentDOM（editor）之外的 DOM 变化，避免 renderInto 触发死循环
   ignoreMutation(mutation) {
     return !this.editor.contains(mutation.target);
   }
 
   showPreview() {
-    this.mode = 'preview';
     this.dom.dataset.mode = 'preview';
-    this.preview.style.display = '';
-    this.toolbar.style.display = '';
-    this.editor.style.display = 'none';
-    this.doneBar.style.display = 'none';
     renderInto(this.preview, this.node.textContent);
   }
 
-  showEditor(focus) {
-    this.mode = 'edit';
+  showEditor() {
     this.dom.dataset.mode = 'edit';
-    this.preview.style.display = 'none';
-    this.toolbar.style.display = 'none';
-    this.editor.style.display = '';
-    this.doneBar.style.display = '';
-    if (focus) {
+    requestAnimationFrame(() => {
       requestAnimationFrame(() => {
-        requestAnimationFrame(() => {
-          this.editor.focus();
-        });
+        this.editor.focus();
       });
-    }
+    });
   }
 
   update(node) {
     this.node = node;
-    // 预览模式下代码变化（如撤销/外部更新）时防抖重新渲染
-    if (this.mode === 'preview') {
+    if (this.dom.dataset.mode === 'preview') {
       if (this.renderTimer) clearTimeout(this.renderTimer);
       this.renderTimer = setTimeout(() => {
         renderInto(this.preview, this.node.textContent);

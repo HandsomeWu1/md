@@ -19,18 +19,15 @@ export default function InputDialog({
   const secondRef = useRef(null);
 
   useEffect(() => {
+    // 只在弹窗打开时聚焦一次，不依赖 secondField（否则每次渲染都会重新抢焦点，
+    // 导致在第二个输入框输入时，焦点被强行拉回第一个输入框）。
     if (open) {
       const id = requestAnimationFrame(() => {
-        if (secondField) {
-          // 双字段时聚焦到第一个（显示文字）
-          firstRef.current?.focus();
-        } else {
-          firstRef.current?.focus();
-        }
+        firstRef.current?.focus();
       });
       return () => cancelAnimationFrame(id);
     }
-  }, [open, secondField]);
+  }, [open]);
 
   if (!open) return null;
 
