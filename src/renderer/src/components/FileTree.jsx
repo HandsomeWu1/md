@@ -30,6 +30,8 @@ function TreeNode({
   onNewFolder,
   onRename,
   onDelete,
+  onReveal,
+  onContextMenu,
 }) {
   const isDir = node.type === 'dir';
   const isOpen = expanded.has(node.path);
@@ -46,12 +48,19 @@ function TreeNode({
     if (isDir) onToggleExpand(node.path);
   };
 
+  const handleRowContextMenu = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    onContextMenu(e.clientX, e.clientY, node.path, isDir);
+  };
+
   return (
     <div className="filetree-node">
       <div
         className={'filetree-row' + (isActive ? ' active' : '')}
         style={{ paddingLeft: 6 + depth * 14 }}
         onClick={handleRowClick}
+        onContextMenu={handleRowContextMenu}
       >
         <span className="filetree-arrow" onClick={handleArrowClick}>
           {isDir ? (isOpen ? '▾' : '▸') : ''}
@@ -60,18 +69,6 @@ function TreeNode({
           {isDir ? <FolderIcon open={isOpen} /> : <FileIcon />}
         </span>
         <span className="filetree-label">{node.name}</span>
-        {isDir && (
-          <span className="filetree-actions">
-            <button
-              type="button"
-              title="新建文件"
-              onMouseDown={(e) => e.stopPropagation()}
-              onClick={(e) => { e.stopPropagation(); onNewFile(node.path); }}
-            >
-              ＋
-            </button>
-          </span>
-        )}
       </div>
 
       {isDir && isOpen && (
@@ -95,6 +92,8 @@ function TreeNode({
                 onNewFolder={onNewFolder}
                 onRename={onRename}
                 onDelete={onDelete}
+                onReveal={onReveal}
+                onContextMenu={onContextMenu}
               />
             ))
           )}
@@ -117,26 +116,25 @@ export default function FileTree({
   onRename,
   onDelete,
   onRefresh,
+  onReveal,
   rootName,
 }) {
-  const [menu, setMenu] = useState(null); // { x, y, path, isDir }
+  // menu: { x, y, path, isDir }；path 为 null 表示空白处右键
+  const [menu, setMenu] = useState(null);
 
   const isEmpty = !tree || tree.length === 0;
 
-  const handleContextMenu = (e, path, isDir) => {
-    e.preventDefault();
-    setMenu({ x: e.clientX, y: e.clientY, path, isDir });
+  const handleContextMenu = (x, y, path, isDir) => {
+    setMenu({ x, y, path, isDir });
   };
 
-  // 根节点右键菜单
-  const handleRootContextMenu = (e) => {
+  const handleBlankContextMenu = (e) => {
     e.preventDefault();
-    setMenu({ x: e.clientX, y: e.clientY, path: null, isDir: true });
+    setMenu({ x: e.clientX, y: e.clientY, path: null, isDir: null });
   };
 
   const closeMenu = () => setMenu(null);
 
-  // 点击其他区域关闭菜单
   React.useEffect(() => {
     if (!menu) return;
     const onDown = () => closeMenu();
@@ -146,7 +144,7 @@ export default function FileTree({
 
   if (isEmpty) {
     return (
-      <div className="filetree-empty" onContextMenu={handleRootContextMenu}>
+      <div className="filetree-empty" onContextMenu={handleBlankContextMenu}>
         <button type="button" className="filetree-open-btn" onClick={onOpenFolder}>
           打开文件夹
         </button>
@@ -156,7 +154,7 @@ export default function FileTree({
   }
 
   return (
-    <div className="filetree" onContextMenu={handleRootContextMenu}>
+    <div className="filetree" onContextMenu={handleBlankContextMenu}>
       {tree.map((node) => (
         <TreeNode
           key={node.path}
@@ -171,6 +169,8 @@ export default function FileTree({
           onNewFolder={onNewFolder}
           onRename={onRename}
           onDelete={onDelete}
+          onReveal={onReveal}
+          onContextMenu={handleContextMenu}
         />
       ))}
 
@@ -181,24 +181,35 @@ export default function FileTree({
           style={{ left: menu.x, top: menu.y }}
           onMouseDown={(e) => e.stopPropagation()}
         >
-          {menu.path != null ? (
+          {menu.path == null ? (
+            // 空白处右键：新建 + 刷新
             <>
-              {menu.isDir && (
-                <>
-                  <button type="button" onClick={() => { onNewFile(menu.path); closeMenu(); }}>创建 md 文件</button>
-                  <button type="button" onClick={() => { onNewFolder(menu.path); closeMenu(); }}>创建文件夹</button>
-                  <div className="filetree-menu-sep" />
-                </>
-              )}
+              <button type="button" onClick={() => { onNewFile(null); closeMenu(); }}>新建 Markdown 文件</button>
+              <button type="button" onClick={() => { onNewFolder(null); closeMenu(); }}>新建文件夹</button>
+              <div className="filetree-menu-sep" />
+              <button type="button" onClick={() => { onRefresh(null); closeMenu(); }}>刷新</button>
+            </>
+          ) : menu.isDir ? (
+            // 文件夹右键：新建 + 重命名/删除 + 刷新
+            <>
+              <button type="button" onClick={() => { onNewFile(menu.path); closeMenu(); }}>新建 Markdown 文件</button>
+              <button type="button" onClick={() => { onNewFolder(menu.path); closeMenu(); }}>新建文件夹</button>
+              <div className="filetree-menu-sep" />
+              <button type="button" onClick={() => { onReveal(menu.path); closeMenu(); }}>在 Finder 中显示</button>
+              <div className="filetree-menu-sep" />
+              <button type="button" onClick={() => { onRename(menu.path, true); closeMenu(); }}>重命名</button>
+              <button type="button" className="danger" onClick={() => { onDelete(menu.path, true); closeMenu(); }}>删除</button>
+              <div className="filetree-menu-sep" />
               <button type="button" onClick={() => { onRefresh(menu.path); closeMenu(); }}>刷新</button>
-              <button type="button" onClick={() => { onRename(menu.path, menu.isDir); closeMenu(); }}>重命名</button>
-              <button type="button" className="danger" onClick={() => { onDelete(menu.path, menu.isDir); closeMenu(); }}>删除</button>
             </>
           ) : (
+            // 文件右键：打开 + Finder + 重命名/删除
             <>
-              <button type="button" onClick={() => { onNewFile(rootName || null); closeMenu(); }}>创建 md 文件</button>
-              <button type="button" onClick={() => { onNewFolder(rootName || null); closeMenu(); }}>创建文件夹</button>
-              <button type="button" onClick={() => { onRefresh(rootName || null); closeMenu(); }}>刷新</button>
+              <button type="button" onClick={() => { onSelectFile(menu.path); closeMenu(); }}>打开</button>
+              <button type="button" onClick={() => { onReveal(menu.path); closeMenu(); }}>在 Finder 中显示</button>
+              <div className="filetree-menu-sep" />
+              <button type="button" onClick={() => { onRename(menu.path, false); closeMenu(); }}>重命名</button>
+              <button type="button" className="danger" onClick={() => { onDelete(menu.path, false); closeMenu(); }}>删除</button>
             </>
           )}
         </div>

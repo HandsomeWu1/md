@@ -20,6 +20,7 @@ import { slash, configureSlash } from './slashMenu';
 import { taskListToggle } from './taskListToggle';
 import { codeBlockLanguage } from './codeBlockLanguage';
 import { codeBlockBackspace } from './codeBlockBackspace';
+import { headingBackspace } from './headingBackspace';
 import { nord } from '@milkdown/theme-nord';
 import '@milkdown/theme-nord/style.css';
 import '@milkdown/kit/prose/view/style/prosemirror.css';
@@ -139,6 +140,7 @@ export function createMilkdown(root, { defaultValue = '', onMarkdownUpdated, onS
     .use(taskListToggle)
     .use(codeBlockLanguage)
     .use(codeBlockBackspace)
+    .use(headingBackspace)
     .use(slash)
     .use(nord);
 }

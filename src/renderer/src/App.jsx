@@ -7,6 +7,7 @@ import TabBar from './components/TabBar';
 import StatusBar from './components/StatusBar';
 import SearchDialog from './components/SearchDialog';
 import Welcome from './components/Welcome';
+import InputDialog from './components/InputDialog';
 import Toolbar from './components/Toolbar';
 import Editor from './editor/Editor';
 import { extractOutline, countWords, findInMarkdown, replaceAllInMarkdown } from './utils/markdown';
@@ -43,6 +44,9 @@ export default function App() {
   const [focusModeOn, setFocusModeOn] = useState(false);
   const [typewriterModeOn, setTypewriterModeOn] = useState(false);
   const [activeFormats, setActiveFormats] = useState({});
+  // 文件操作输入弹窗：{ title, placeholder, defaultValue, onConfirm }
+  const [filePrompt, setFilePrompt] = useState(null);
+  const [filePromptValue, setFilePromptValue] = useState('');
 
   const editorRef = useRef(null);
   const suppressRef = useRef(false);
@@ -175,69 +179,91 @@ export default function App() {
 
   // ---------- 文件树操作：新建文件/文件夹、重命名、删除 ----------
   const newFileInDir = useCallback(
-    async (dirPath) => {
+    (dirPath) => {
       const dir = dirPath || folderRoot;
       if (!dir) return openFolderDialog();
-      let name = window.prompt('创建 md 文件，请输入文件名：', 'untitled.md');
-      if (!name) return;
-      // 若用户没写 .md 后缀，自动补上
-      if (!/\.(md|markdown|mdown|txt)$/i.test(name)) name += '.md';
-      const res = await api.createFile(dir, name);
-      if (res.ok) {
-        await loadChildren(dir);
-        // 若该目录是展开的根，刷新顶层
-        if (dir === folderRoot) {
-          const treeRes = await api.listTree(dir);
-          if (treeRes.ok) setFileTree(treeRes.tree || []);
-        }
-        // 直接打开新建的 md 文件
-        if (/\.(md|markdown|mdown|txt)$/i.test(res.path)) {
-          await openPath(res.path);
-        }
-      }
+      setFilePromptValue('untitled.md');
+      setFilePrompt({
+        title: '新建 Markdown 文件',
+        placeholder: '文件名（自动补 .md 后缀）',
+        onConfirm: async (name) => {
+          let finalName = name.trim();
+          if (!finalName) return;
+          if (!/\.(md|markdown|mdown|txt)$/i.test(finalName)) finalName += '.md';
+          const res = await api.createFile(dir, finalName);
+          if (res.ok) {
+            await loadChildren(dir);
+            if (dir === folderRoot) {
+              const treeRes = await api.listTree(dir);
+              if (treeRes.ok) setFileTree(treeRes.tree || []);
+            }
+            if (/\.(md|markdown|mdown|txt)$/i.test(res.path)) {
+              await openPath(res.path);
+            }
+          }
+        },
+      });
     },
     [folderRoot, openFolderDialog, loadChildren, openPath]
   );
 
   const newFolderInDir = useCallback(
-    async (dirPath) => {
+    (dirPath) => {
       const dir = dirPath || folderRoot;
       if (!dir) return openFolderDialog();
-      const name = window.prompt('请输入文件夹名：', '新建文件夹');
-      if (!name) return;
-      const res = await api.createFolder(dir, name);
-      if (res.ok) {
-        await loadChildren(dir);
-        if (dir === folderRoot) {
-          const treeRes = await api.listTree(dir);
-          if (treeRes.ok) setFileTree(treeRes.tree || []);
-        }
-        // 展开父目录
-        setExpanded((prev) => new Set(prev).add(dir));
-      }
+      setFilePromptValue('');
+      setFilePrompt({
+        title: '新建文件夹',
+        placeholder: '文件夹名',
+        onConfirm: async (name) => {
+          const finalName = name.trim();
+          if (!finalName) return;
+          const res = await api.createFolder(dir, finalName);
+          if (res.ok) {
+            await loadChildren(dir);
+            if (dir === folderRoot) {
+              const treeRes = await api.listTree(dir);
+              if (treeRes.ok) setFileTree(treeRes.tree || []);
+            }
+            setExpanded((prev) => new Set(prev).add(dir));
+          }
+        },
+      });
     },
     [folderRoot, openFolderDialog, loadChildren]
   );
 
   const renamePath = useCallback(
-    async (p, isDir) => {
-      const name = window.prompt('请输入新名称：', p.split('/').pop());
-      if (!name || name === p.split('/').pop()) return;
-      const dir = p.slice(0, p.lastIndexOf('/'));
-      const newPath = dir + '/' + name;
-      const res = await api.rename(p, newPath);
-      if (res.ok) {
-        await loadChildren(dir);
-        if (dir === folderRoot) {
-          const treeRes = await api.listTree(dir);
-          if (treeRes.ok) setFileTree(treeRes.tree || []);
-        }
-        // 若重命名的文件正打开着，更新标签路径
-        setTabs((prev) => prev.map((t) => (t.path === p ? { ...t, path: newPath, name } : t)));
-      }
+    (p, isDir) => {
+      const oldName = p.split('/').pop();
+      setFilePromptValue(oldName);
+      setFilePrompt({
+        title: '重命名',
+        placeholder: '新名称',
+        onConfirm: async (name) => {
+          const finalName = name.trim();
+          if (!finalName || finalName === oldName) return;
+          const dir = p.slice(0, p.lastIndexOf('/'));
+          const newPath = dir + '/' + finalName;
+          const res = await api.rename(p, newPath);
+          if (res.ok) {
+            await loadChildren(dir);
+            if (dir === folderRoot) {
+              const treeRes = await api.listTree(dir);
+              if (treeRes.ok) setFileTree(treeRes.tree || []);
+            }
+            setTabs((prev) => prev.map((t) => (t.path === p ? { ...t, path: newPath, name: finalName } : t)));
+          }
+        },
+      });
     },
     [folderRoot, loadChildren]
   );
+
+  const revealPath = useCallback(async (p) => {
+    if (!p) return;
+    await api.revealInFinder(p);
+  }, []);
 
   const deletePath = useCallback(
     async (p, isDir) => {
@@ -549,6 +575,7 @@ export default function App() {
         onRename={renamePath}
         onDelete={deletePath}
         onRefresh={refreshTree}
+        onReveal={revealPath}
         rootName={folderRoot ? folderRoot.split('/').pop() : null}
       />
     ) : (
@@ -654,6 +681,22 @@ export default function App() {
         }
         onReplace={() => doReplace(false)}
         onReplaceAll={() => doReplace(true)}
+      />
+
+      {/* 文件操作输入弹窗（新建文件/文件夹、重命名） */}
+      <InputDialog
+        open={!!filePrompt}
+        title={filePrompt?.title || ''}
+        value={filePromptValue}
+        placeholder={filePrompt?.placeholder || ''}
+        onChange={setFilePromptValue}
+        onConfirm={() => {
+          const fn = filePrompt?.onConfirm;
+          const v = filePromptValue;
+          setFilePrompt(null);
+          if (fn) fn(v);
+        }}
+        onCancel={() => setFilePrompt(null)}
       />
     </div>
   );
