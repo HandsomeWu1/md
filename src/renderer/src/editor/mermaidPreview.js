@@ -142,6 +142,10 @@ class MermaidBlockView {
   }
 
   update(node) {
+    // 语言被改成非 mermaid（如 java）时，本 NodeView 不再适用：
+    // 返回 false 让 ProseMirror 销毁本 NodeView，改用默认 code_block 渲染（prism 高亮）。
+    // 否则 mermaid 预览会一直保留，语言切换「看起来没生效」。
+    if (node.attrs.language !== 'mermaid') return false;
     this.node = node;
     if (this.dom.dataset.mode === 'preview') {
       if (this.renderTimer) clearTimeout(this.renderTimer);

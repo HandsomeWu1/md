@@ -6,6 +6,7 @@ import { editorViewCtx } from '@milkdown/kit/core';
 import { undo, redo } from '@milkdown/kit/prose/history';
 import { TextSelection } from '@milkdown/prose/state';
 import { getActiveFormats } from './selection';
+import { searchHighlightKey, setSearchQuery } from './searchHighlight';
 import TableFloatingToolbar from '../components/TableFloatingToolbar';
 
 function runWithView(editor, fn) {
@@ -68,8 +69,10 @@ const InnerEditor = forwardRef(function InnerEditor({ initialValue, onChange, on
     return () => cancelAnimationFrame(id);
   }, [loading]);
 
-  // 点击编辑器容器空白区域（ProseMirror 内容之外）时，把光标定位到文档开头（空文档即第一行）。
-  // Milkdown 空文档只有一个段落，contentDOM 高度只有一行，导致下方大片空白不可点击。
+  // 点击编辑器容器空白区域（ProseMirror 内容之外）时：
+  //   - 空文档（无任何内容）→ 光标定位到第一行（开头）
+  //   - 有内容的文档 → 光标定位到末尾（最后一行），而不是跳回页头
+  // Milkdown 空文档只有一个空段落，contentDOM 高度只有一行，导致下方大片空白不可点击。
   const handleContainerClick = useCallback(
     (e) => {
       const pm = e.currentTarget.querySelector('.ProseMirror');
@@ -81,9 +84,16 @@ const InnerEditor = forwardRef(function InnerEditor({ initialValue, onChange, on
         if (!view) return;
         view.focus();
         const { doc } = view.state;
-        // 定位到文档开头（第一行）。空文档只有一个空段落，pos 1 即第一行。
-        const pos = Math.min(1, doc.content.size);
-        view.dispatch(view.state.tr.setSelection(TextSelection.create(doc, pos)).scrollIntoView());
+        const isEmpty = doc.textContent.trim() === '';
+        let sel;
+        if (isEmpty) {
+          // 空文档：定位到开头（第一行）
+          sel = TextSelection.create(doc, 1);
+        } else {
+          // 有内容：定位到文档末尾（最后一行），点击下方空白不应跳回页头
+          sel = TextSelection.near(doc.resolve(doc.content.size), 1);
+        }
+        view.dispatch(view.state.tr.setSelection(sel).scrollIntoView());
       });
     },
     []
@@ -111,6 +121,13 @@ const InnerEditor = forwardRef(function InnerEditor({ initialValue, onChange, on
           const { tr, selection } = view.state;
           view.dispatch(tr.setSelection(selection));
         }),
+      // 更新搜索结果高亮：设置全局查询词，dispatch 带 meta 的事务触发 decoration 重算
+      setSearchHighlight: (query, caseSensitive) => {
+        setSearchQuery(query, caseSensitive);
+        runWithView(getRef.current(), (view) => {
+          view.dispatch(view.state.tr.setMeta(searchHighlightKey, { type: 'search-highlight-update' }));
+        });
+      },
     }),
     [loading]
   );

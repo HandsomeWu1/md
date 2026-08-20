@@ -27,6 +27,7 @@ const LANGUAGES = [
   'bash',
   'shell',
   'markdown',
+  'mermaid',
 ];
 
 const key = new PluginKey('code-block-language');

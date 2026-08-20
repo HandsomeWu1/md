@@ -10,6 +10,7 @@ const DEV_URL = process.env.VITE_DEV_SERVER_URL;
 
 let mainWindow = null;
 let pendingFilePath = null;
+let isQuitting = false; // 标记 app 正在退出（Cmd+Q / 菜单退出），此时放行 close 拦截
 
 // 启动日志：写入 userData 目录，便于「点击无反应」时排查。
 let logFile = null;
@@ -98,7 +99,9 @@ function createWindow() {
 
   // 关闭窗口前拦截：通知渲染层检查未保存文档，由渲染层决定是否真正关闭。
   // （极简模式/直接点红绿灯关闭时，未保存内容不应静默丢失。）
+  // 但 app 退出（Cmd+Q / 菜单退出）时放行，否则会卡住退出流程。
   mainWindow.on('close', (event) => {
+    if (isQuitting) return;
     event.preventDefault();
     mainWindow.webContents.send('app:before-close');
   });
@@ -157,4 +160,10 @@ app.whenReady().then(() => {
 
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') app.quit();
+});
+
+// app 退出（Cmd+Q / 菜单「退出」）前设置标志，放行窗口 close 拦截，让退出流程正常走完。
+// 否则 close 的 preventDefault 会中止 app.quit()，表现为「Cmd+Q 不退出」。
+app.on('before-quit', () => {
+  isQuitting = true;
 });

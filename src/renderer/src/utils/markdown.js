@@ -29,6 +29,18 @@ export function extractOutline(markdown) {
   return outline;
 }
 
+// 为大纲标题计算多级编号（与编辑器 CSS counter 的编号逻辑完全一致）：
+// h1→"1"，h2→"1.1"，h3→"1.1.1"；遇到更高级标题时重置所有更深层级计数。
+export function computeHeadingNumbers(items) {
+  const counters = [0, 0, 0, 0, 0, 0]; // 对应 h1~h6
+  return items.map((item) => {
+    const level = Math.min(6, Math.max(1, item.level));
+    counters[level - 1] += 1;
+    for (let i = level; i < 6; i++) counters[i] = 0; // 重置更深层级
+    return counters.slice(0, level).join('.');
+  });
+}
+
 export function countWords(markdown) {
   const text = (markdown || '')
     .replace(/```[\s\S]*?```/g, ' ')

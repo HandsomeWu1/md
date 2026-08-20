@@ -448,6 +448,8 @@ export default function App() {
     const t = tabsRef.current.find((x) => x.id === activeTabIdRef.current);
     const matches = findInMarkdown(t?.markdown || '', query, caseSensitive);
     setSearch((s) => ({ ...s, matches, index: matches.length ? 0 : -1 }));
+    // 触发编辑器内搜索结果高亮
+    editorRef.current?.setSearchHighlight(query, caseSensitive);
   }, []);
 
   const doReplace = useCallback(
@@ -558,8 +560,15 @@ export default function App() {
         case 'export:pdf': doExport('pdf'); break;
         case 'edit:undo': editorRef.current?.undo(); break;
         case 'edit:redo': editorRef.current?.redo(); break;
-        case 'edit:find': setSearch((s) => ({ ...s, open: true, mode: 'find' })); break;
-        case 'edit:replace': setSearch((s) => ({ ...s, open: true, mode: 'replace' })); break;
+        case 'edit:find':
+          setSearch((s) => ({ ...s, open: true, mode: 'find' }));
+          // 打开时用当前查询词重新搜索，避免文档已更新却仍显示旧结果
+          runSearch(searchRef.current.query, searchRef.current.caseSensitive);
+          break;
+        case 'edit:replace':
+          setSearch((s) => ({ ...s, open: true, mode: 'replace' }));
+          runSearch(searchRef.current.query, searchRef.current.caseSensitive);
+          break;
         case 'view:toggle-sidebar': setSidebarOpen((v) => !v); break;
         case 'view:toggle-outline':
           setSidebarOpen(true);
@@ -575,7 +584,7 @@ export default function App() {
         default: break;
       }
     },
-    [newTab, openFileDialog, openFolderDialog, doSave, saveAs, closeTab, doExport, toggleTheme, toggleFocusMode, toggleTypewriterMode]
+    [newTab, openFileDialog, openFolderDialog, doSave, saveAs, closeTab, doExport, toggleTheme, toggleFocusMode, toggleTypewriterMode, runSearch]
   );
 
   const handleMenuRef = useRef(handleMenu);
@@ -672,7 +681,12 @@ export default function App() {
         rootName={folderRoot ? folderRoot.split('/').pop() : null}
       />
     ) : (
-      <Outline items={outline} activeIndex={-1} onJump={jumpToHeading} />
+      <Outline
+        items={outline}
+        activeIndex={-1}
+        onJump={jumpToHeading}
+        headingNumbering={!!settings.headingNumbering}
+      />
     );
 
   return (

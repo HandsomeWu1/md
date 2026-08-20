@@ -19,6 +19,7 @@ import { focusMode, typewriterMode } from './modes';
 import { slash, configureSlash } from './slashMenu';
 import { taskListToggle } from './taskListToggle';
 import { tableSignal } from './tableSignal';
+import { searchHighlight } from './searchHighlight';
 import { codeBlockLanguage } from './codeBlockLanguage';
 import { codeBlockBackspace } from './codeBlockBackspace';
 import { headingBackspace } from './headingBackspace';
@@ -146,6 +147,7 @@ export function createMilkdown(root, { defaultValue = '', onMarkdownUpdated, onS
     .use(typewriterMode)
     .use(taskListToggle)
     .use(tableSignal)
+    .use(searchHighlight)
     .use(codeBlockLanguage)
     .use(codeBlockBackspace)
     .use(headingBackspace)

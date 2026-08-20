@@ -44,10 +44,14 @@ export default function TableFloatingToolbar({ view }) {
     };
   }, [view, updatePosition]);
 
+  // 阻止 mousedown 默认行为：避免点击按钮时编辑器失焦（失焦会破坏选区、
+  // 并在重新 focus 时把滚动位置跳回顶部）。点击按钮全程保持编辑器焦点。
+  const keepFocus = (e) => e.preventDefault();
+
   const dispatch = (tr) => {
     if (!view) return;
     view.dispatch(tr);
-    view.focus();
+    // 不调用 view.focus()：编辑器从未失焦，无需重新聚焦（否则会触发滚动跳动）。
   };
 
   const handleAddRowBefore = () => { if (view) addRowBefore(view.state, dispatch); };
@@ -63,19 +67,19 @@ export default function TableFloatingToolbar({ view }) {
 
   return (
     <div className="table-floating-toolbar" style={{ position: 'fixed', top: pos.top, left: pos.left - 60, zIndex: 1500 }}>
-      <button type="button" title="在上方插入行" onClick={handleAddRowBefore}>行上</button>
-      <button type="button" title="在下方插入行" onClick={handleAddRowAfter}>行下</button>
+      <button type="button" title="在当前行上方插入一行" onMouseDown={keepFocus} onClick={handleAddRowBefore}>上方加行</button>
+      <button type="button" title="在当前行下方插入一行" onMouseDown={keepFocus} onClick={handleAddRowAfter}>下方加行</button>
       <span className="tft-sep" />
-      <button type="button" title="在左侧插入列" onClick={handleAddColBefore}>列左</button>
-      <button type="button" title="在右侧插入列" onClick={handleAddColAfter}>列右</button>
+      <button type="button" title="在当前列左侧插入一列" onMouseDown={keepFocus} onClick={handleAddColBefore}>左侧加列</button>
+      <button type="button" title="在当前列右侧插入一列" onMouseDown={keepFocus} onClick={handleAddColAfter}>右侧加列</button>
       <span className="tft-sep" />
-      <button type="button" title="删除当前行" onClick={handleDeleteRow}>删行</button>
-      <button type="button" title="删除当前列" onClick={handleDeleteCol}>删列</button>
-      <button type="button" title="删除整个表格" onClick={handleDeleteTable} className="danger">删表</button>
+      <button type="button" title="删除当前行" onMouseDown={keepFocus} onClick={handleDeleteRow}>删除行</button>
+      <button type="button" title="删除当前列" onMouseDown={keepFocus} onClick={handleDeleteCol}>删除列</button>
+      <button type="button" title="删除整个表格" onMouseDown={keepFocus} onClick={handleDeleteTable} className="danger">删除表格</button>
       <span className="tft-sep" />
-      <button type="button" title="左对齐" onClick={() => handleAlign('left')}>左</button>
-      <button type="button" title="居中" onClick={() => handleAlign('center')}>中</button>
-      <button type="button" title="右对齐" onClick={() => handleAlign('right')}>右</button>
+      <button type="button" title="左对齐" onMouseDown={keepFocus} onClick={() => handleAlign('left')}>左对齐</button>
+      <button type="button" title="居中" onMouseDown={keepFocus} onClick={() => handleAlign('center')}>居中</button>
+      <button type="button" title="右对齐" onMouseDown={keepFocus} onClick={() => handleAlign('right')}>右对齐</button>
     </div>
   );
 }

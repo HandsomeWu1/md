@@ -20,10 +20,10 @@
   --quote-border: #dfe2e5;
   --heading: #1f1f1f;
   --link: #4183c4;
-  --table-border: #d9d9dc;
+  --table-border: #c2c2c8;
   --table-head-bg: #f4f5f6;
   --table-stripe-bg: #fafbfc;
-  --table-head-border: #d0d0d4;
+  --table-head-border: #b3b3ba;
   --scrollbar: rgba(0, 0, 0, 0.2);
   --titlebar-bg: transparent;   /* 透明背景，与下方编辑区无缝衔接 */
   --find-match: #ffe873;
@@ -64,10 +64,10 @@
   --quote-border: #3f3f40;
   --heading: #e6e6e6;
   --link: #569cd6;
-  --table-border: #4a4a4d;
+  --table-border: #5a5a5e;
   --table-head-bg: #2f2f31;
   --table-stripe-bg: #262628;
-  --table-head-border: #525255;
+  --table-head-border: #6a6a6e;
   --scrollbar: rgba(255, 255, 255, 0.22);
   --titlebar-bg: transparent;   /* dark 模式也透明 */
   --find-match: #6a5d00;
@@ -970,6 +970,11 @@ body {
   border-radius: 0 6px 6px 0;
   transition: background 0.1s ease;
 }
+.outline-number {
+  color: var(--text-muted);
+  margin-right: 4px;
+  font-variant-numeric: tabular-nums;
+}
 .outline-item:hover {
   background: var(--bg-hover);
   color: var(--text);
@@ -1389,7 +1394,8 @@ body {
   text-align: left;
   font-family: var(--editor-font);
 }
-.slash-item:hover {
+.slash-item:hover,
+.slash-item.selected {
   background: var(--bg-active);
 }
 .slash-icon {

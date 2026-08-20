@@ -90,19 +90,6 @@ export default function TitleBar({
         </button>
         <button
           type="button"
-          className={'tb-btn' + (outlineOpen ? ' active' : '')}
-          onClick={onToggleOutline}
-          title="大纲"
-          aria-label="切换大纲"
-        >
-          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6">
-            <line x1="3" y1="4" x2="13" y2="4" />
-            <line x1="6" y1="8" x2="13" y2="8" />
-            <line x1="6" y1="12" x2="13" y2="12" />
-          </svg>
-        </button>
-        <button
-          type="button"
           className="tb-btn"
           onClick={onToggleTheme}
           title={theme === 'dark' ? '切换到浅色' : '切换到深色'}

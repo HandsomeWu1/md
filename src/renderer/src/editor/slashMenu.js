@@ -18,11 +18,31 @@ function runBlockCommand(view, command) {
   command(view.state, view.dispatch);
 }
 
+// 插入一个 row x col 的表格（与 gfm insertTableCommand 相同效果，但不依赖命令注册/ctx）。
+// 直接用 schema 节点构造，避免引入 @milkdown/kit/preset/gfm 的 $command 运行期依赖。
+function insertTable(state, dispatch, row = 3, col = 3) {
+  const { table, table_header_row, table_row, table_header, table_cell } = state.schema.nodes;
+  if (!table || !table_header_row || !table_row) return false;
+
+  const makeCell = () => table_cell.createAndFill();
+  const makeHeader = () => table_header.createAndFill();
+  const headerRow = table_header_row.create(null, Array.from({ length: col }, makeHeader));
+  const bodyRows = Array.from({ length: row - 1 }, () =>
+    table_row.create(null, Array.from({ length: col }, makeCell))
+  );
+  const tableNode = table.create(null, [headerRow, ...bodyRows]);
+
+  dispatch?.(state.tr.replaceSelectionWith(tableNode).scrollIntoView());
+  return true;
+}
+
 class SlashMenuView {
   constructor(ctx, view) {
+    this.ctx = ctx;
     this.view = view;
     this.element = document.createElement('div');
     this.element.className = 'slash-menu';
+    this.selectedIndex = 0;
     this.provider = new SlashProvider({
       content: this.element,
       debounce: 20,
@@ -35,8 +55,49 @@ class SlashMenuView {
     this.provider.onShow = () => this.render();
     this.provider.onHide = () => {
       this.element.innerHTML = '';
+      this.selectedIndex = 0;
     };
+    this.onKeyDown = this.onKeyDown.bind(this);
+    this.bindKeys();
     this.update(view);
+  }
+
+  bindKeys() {
+    // capture 阶段监听：在 ProseMirror 处理按键前拦截，阻止上下键移动光标
+    this.view.dom.addEventListener('keydown', this.onKeyDown, true);
+  }
+
+  unbindKeys() {
+    this.view.dom.removeEventListener('keydown', this.onKeyDown, true);
+  }
+
+  onKeyDown(e) {
+    // 只有菜单显示时才拦截按键
+    if (this.element.dataset.show !== 'true') return;
+    const items = this.getItems();
+    if (items.length === 0) return;
+
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      e.stopPropagation();
+      this.setSelected((this.selectedIndex + 1) % items.length);
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      e.stopPropagation();
+      this.setSelected((this.selectedIndex - 1 + items.length) % items.length);
+    } else if (e.key === 'Enter') {
+      e.preventDefault();
+      e.stopPropagation();
+      const item = items[this.selectedIndex];
+      if (item) {
+        item.run();
+        this.provider.hide();
+      }
+    } else if (e.key === 'Escape') {
+      e.preventDefault();
+      e.stopPropagation();
+      this.provider.hide();
+    }
   }
 
   getItems() {
@@ -59,12 +120,29 @@ class SlashMenuView {
     if (nodes.code_block) {
       items.push({ label: '代码块', icon: '</>', run: () => runBlockCommand(this.view, setBlockType(nodes.code_block)) });
     }
+    if (nodes.table) {
+      items.push({
+        label: '表格',
+        icon: '⊞',
+        run: () => runBlockCommand(this.view, (state, dispatch) => insertTable(state, dispatch, 3, 3)),
+      });
+    }
     return items;
+  }
+
+  // 更新选中项并刷新高亮（不重建 DOM，避免 hover 抖动）
+  setSelected(index) {
+    this.selectedIndex = index;
+    const btns = this.element.querySelectorAll('.slash-item');
+    btns.forEach((btn, i) => {
+      btn.classList.toggle('selected', i === index);
+    });
   }
 
   render() {
     this.element.innerHTML = '';
-    for (const item of this.getItems()) {
+    const items = this.getItems();
+    items.forEach((item, index) => {
       const btn = document.createElement('button');
       btn.className = 'slash-item';
       btn.type = 'button';
@@ -80,16 +158,25 @@ class SlashMenuView {
         item.run();
         this.provider.hide();
       });
+      btn.addEventListener('mouseenter', () => this.setSelected(index));
       this.element.appendChild(btn);
-    }
+    });
+    this.setSelected(this.selectedIndex);
   }
 
   update(view) {
-    this.view = view;
+    if (this.view && this.view.dom !== view.dom) {
+      this.unbindKeys();
+      this.view = view;
+      this.bindKeys();
+    } else {
+      this.view = view;
+    }
     this.provider.update(view);
   }
 
   destroy() {
+    this.unbindKeys();
     this.provider.destroy();
     this.element.remove();
   }
