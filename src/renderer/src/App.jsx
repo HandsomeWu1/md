@@ -267,6 +267,27 @@ export default function App() {
     [folderRoot, loadChildren]
   );
 
+  // header 上「重命名」：有路径走文件系统重命名；未保存的新文件改标签名。
+  const promptRenameTab = useCallback(() => {
+    const t = tabsRef.current.find((x) => x.id === activeTabIdRef.current);
+    if (!t) return;
+    if (t.path) {
+      renamePath(t.path, false);
+      return;
+    }
+    // 未保存文件：只改标签名（不涉及磁盘）
+    setFilePromptValue(t.name || '未命名');
+    setFilePrompt({
+      title: '重命名',
+      placeholder: '新名称',
+      onConfirm: (name) => {
+        const finalName = name.trim();
+        if (!finalName) return;
+        updateTab(t.id, { name: finalName });
+      },
+    });
+  }, [renamePath, updateTab]);
+
   const revealPath = useCallback(async (p) => {
     if (!p) return;
     await api.revealInFinder(p);
@@ -671,7 +692,7 @@ export default function App() {
         onToggleLean={toggleLean}
         onSave={activeTabId ? () => doSave(activeTabId) : null}
         onSaveAs={activeTabId ? () => saveAs(activeTabId) : null}
-        onRename={activeTab && activeTab.path ? () => renamePath(activeTab.path, false) : null}
+        onRename={promptRenameTab}
         onReveal={activeTab && activeTab.path ? () => revealPath(activeTab.path) : null}
         onClose={activeTabId ? () => closeTab(activeTabId) : null}
       />
@@ -730,8 +751,6 @@ export default function App() {
             characters={stats.characters}
             dirty={!!(activeTab && activeTab.dirty)}
             savedAt={activeTab?.savedAt}
-            theme={theme}
-            onToggleTheme={toggleTheme}
           />
         </div>
       </div>
@@ -774,6 +793,7 @@ export default function App() {
         value={filePromptValue}
         placeholder={filePrompt?.placeholder || ''}
         onChange={setFilePromptValue}
+        selectOnOpen
         onConfirm={() => {
           const fn = filePrompt?.onConfirm;
           const v = filePromptValue;

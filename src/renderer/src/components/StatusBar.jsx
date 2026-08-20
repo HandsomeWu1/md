@@ -1,6 +1,6 @@
 import React from 'react';
 
-export default function StatusBar({ words, characters, dirty, savedAt, theme, onToggleTheme }) {
+export default function StatusBar({ words, characters, dirty, savedAt }) {
   let savedLabel = dirty ? '未保存' : '已保存';
   if (!dirty && savedAt) {
     const d = new Date(savedAt);
@@ -17,15 +17,6 @@ export default function StatusBar({ words, characters, dirty, savedAt, theme, on
       <span className="status-item">{characters} 字符</span>
       <span className="spacer" />
       <span className="status-item">{savedLabel}</span>
-      <button
-        type="button"
-        className="status-theme-btn"
-        onClick={onToggleTheme}
-        title={theme === 'dark' ? '切换到浅色' : '切换到深色'}
-        aria-label="切换主题"
-      >
-        {theme === 'dark' ? '☀' : '☾'}
-      </button>
     </div>
   );
 }

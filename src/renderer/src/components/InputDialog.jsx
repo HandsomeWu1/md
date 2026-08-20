@@ -13,6 +13,7 @@ export default function InputDialog({
   onConfirm,
   onCancel,
   extra,
+  selectOnOpen = false, // 打开时全选已有内容（用于重命名/新建等「覆盖式」输入）
   secondField, // { value, placeholder, onChange }
 }) {
   const firstRef = useRef(null);
@@ -23,7 +24,11 @@ export default function InputDialog({
     // 导致在第二个输入框输入时，焦点被强行拉回第一个输入框）。
     if (open) {
       const id = requestAnimationFrame(() => {
-        firstRef.current?.focus();
+        const el = firstRef.current;
+        if (el) {
+          el.focus();
+          if (selectOnOpen) el.select();
+        }
       });
       return () => cancelAnimationFrame(id);
     }

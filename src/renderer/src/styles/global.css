@@ -386,7 +386,7 @@ body {
 .editor-container .milkdown {
   max-width: 1500px;
   margin: 0 auto;
-  padding: 64px 36px 45vh;
+  padding: 24px 36px 45vh;
   min-height: 100%;
   outline: none;
 }
@@ -411,8 +411,8 @@ body {
   padding: 0 14px;
   font-size: 12px;
   color: var(--text-muted);
-  background: var(--bg-app);
-  border-top: 1px solid var(--border);
+  background: var(--bg);
+  border-top: none;
   gap: 16px;
   user-select: none;
 }
@@ -991,8 +991,8 @@ body {
   display: flex;
   align-items: stretch;
   height: 30px;
-  background: var(--bg-sidebar);
-  border-bottom: 1px solid var(--border);
+  background: var(--bg);
+  border-bottom: none;
 }
 .tabbar-tabs {
   flex: 1;

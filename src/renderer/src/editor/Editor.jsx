@@ -44,10 +44,17 @@ const InnerEditor = forwardRef(function InnerEditor({ initialValue, onChange, on
     []
   );
 
+  // useEditor 返回的 get 是 `() => editorInfo.editor.current`，每次渲染都是新引用。
+  // 用 ref 缓存，避免 effect/回调因 get 变化而重复执行（否则每次父组件重渲染都会
+  // 重新 view.focus()，抢走重命名等输入框的焦点）。
+  const getRef = useRef(get);
+  getRef.current = get;
+
   // 编辑器异步创建完成后自动聚焦，确保新建/切换标签后光标可见（Typora 行为）。
+  // 只依赖 loading：编辑器仅在创建完成（loading 由 true→false）时聚焦一次。
   useEffect(() => {
     if (loading) return;
-    const ed = get();
+    const ed = getRef.current();
     if (!ed) return;
     // 获取 ProseMirror view 实例供 TableFloatingToolbar 使用
     ed.action((ctx) => {
@@ -59,7 +66,7 @@ const InnerEditor = forwardRef(function InnerEditor({ initialValue, onChange, on
       runWithView(ed, (view) => view.focus());
     });
     return () => cancelAnimationFrame(id);
-  }, [loading, get]);
+  }, [loading]);
 
   // 点击编辑器容器空白区域（ProseMirror 内容之外）时，把光标定位到文档开头（空文档即第一行）。
   // Milkdown 空文档只有一个段落，contentDOM 高度只有一行，导致下方大片空白不可点击。
@@ -67,7 +74,7 @@ const InnerEditor = forwardRef(function InnerEditor({ initialValue, onChange, on
     (e) => {
       const pm = e.currentTarget.querySelector('.ProseMirror');
       if (pm && pm.contains(e.target)) return; // 点在正文内，交给编辑器处理
-      const ed = get();
+      const ed = getRef.current();
       if (!ed) return;
       ed.action((ctx) => {
         const view = ctx.get(editorViewCtx);
@@ -79,33 +86,33 @@ const InnerEditor = forwardRef(function InnerEditor({ initialValue, onChange, on
         view.dispatch(view.state.tr.setSelection(TextSelection.create(doc, pos)).scrollIntoView());
       });
     },
-    [get]
+    []
   );
 
   useImperativeHandle(
     ref,
     () => ({
       loading: () => loading,
-      getEditor: () => get(),
+      getEditor: () => getRef.current(),
       getMarkdown: () => {
-        const ed = get();
+        const ed = getRef.current();
         return ed ? ed.action(getMarkdownAction()) : '';
       },
       setMarkdown: (md) => {
-        const ed = get();
+        const ed = getRef.current();
         if (ed) ed.action(replaceAllAction(md || ''));
       },
-      undo: () => runWithView(get(), (view) => undo(view.state, view.dispatch)),
-      redo: () => runWithView(get(), (view) => redo(view.state, view.dispatch)),
-      focus: () => runWithView(get(), (view) => view.focus()),
+      undo: () => runWithView(getRef.current(), (view) => undo(view.state, view.dispatch)),
+      redo: () => runWithView(getRef.current(), (view) => redo(view.state, view.dispatch)),
+      focus: () => runWithView(getRef.current(), (view) => view.focus()),
       // 触发一次 selection 事务，用于让 Focus/Typewriter 等依赖 selection 的插件重算
       refresh: () =>
-        runWithView(get(), (view) => {
+        runWithView(getRef.current(), (view) => {
           const { tr, selection } = view.state;
           view.dispatch(tr.setSelection(selection));
         }),
     }),
-    [get, loading]
+    [loading]
   );
 
   return (
