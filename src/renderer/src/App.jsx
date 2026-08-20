@@ -22,10 +22,10 @@ const baseName = (p) => (p ? p.split('/').pop() : '未命名');
 export default function App() {
   // 在组件体内取 api，避免模块顶层固化 window.api（preload/mock 注入时机更晚时会拿到 undefined）。
   const api = window.api;
-  const [settings, setSettings] = useState({ theme: 'light' });
+  const [settings, setSettings] = useState({ theme: 'light', headingNumbering: false, leanMode: false });
   const [tabs, setTabs] = useState([]);
   const [activeTabId, setActiveTabId] = useState(null);
-  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   const [sidebarMode, setSidebarMode] = useState('files');
   const [folderRoot, setFolderRoot] = useState(null);
   const [fileTree, setFileTree] = useState([]);
@@ -70,6 +70,13 @@ export default function App() {
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme);
   }, [theme]);
+
+  // 启动时加载持久化设置（主题、标题编号等）
+  useEffect(() => {
+    api.getSettings().then((s) => {
+      if (s && typeof s === 'object') setSettings((prev) => ({ ...prev, ...s }));
+    });
+  }, []);
 
   // ---------- 基础工具 ----------
   const updateTab = useCallback((id, patch) => {
@@ -457,6 +464,24 @@ export default function App() {
     });
   }, []);
 
+  const toggleHeadingNumbering = useCallback(() => {
+    setSettings((s) => {
+      const next = { ...s, headingNumbering: !s.headingNumbering };
+      api.setSettings({ headingNumbering: next.headingNumbering });
+      return next;
+    });
+  }, []);
+
+  // ---------- 极简模式 ----------
+  const toggleLean = useCallback(() => {
+    setSettings((s) => {
+      const next = { ...s, leanMode: !s.leanMode };
+      api.setSettings({ leanMode: next.leanMode });
+      return next;
+    });
+    setTimeout(() => editorRef.current?.refresh(), 0);
+  }, []);
+
   // ---------- 编辑模式（Focus / Typewriter） ----------
   const toggleFocusMode = useCallback(() => {
     setFocusModeOn((v) => {
@@ -542,6 +567,18 @@ export default function App() {
     };
   }, []);
 
+  // 极简模式快捷键：Cmd+Shift+L（macOS）/ Ctrl+Shift+L（其他）
+  useEffect(() => {
+    const onKey = (e) => {
+      if ((e.metaKey || e.ctrlKey) && e.shiftKey && (e.key === 'L' || e.key === 'l')) {
+        e.preventDefault();
+        toggleLean();
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [toggleLean]);
+
   // ---------- 渲染 ----------
   const handleToggleExpand = useCallback(
     (p) => {
@@ -583,18 +620,20 @@ export default function App() {
     );
 
   return (
-    <div className="app">
+    <div className={'app' + (settings.leanMode ? ' lean-mode' : '')}>
       <TitleBar
         title={activeTab ? activeTab.name : 'Typora Dev'}
         sidebarOpen={sidebarOpen}
         outlineOpen={sidebarMode === 'outline' && sidebarOpen}
         theme={theme}
+        leanMode={!!settings.leanMode}
         onToggleSidebar={() => setSidebarOpen((v) => !v)}
         onToggleOutline={() => {
           setSidebarOpen(true);
           setSidebarMode((m) => (m === 'outline' ? 'files' : 'outline'));
         }}
         onToggleTheme={toggleTheme}
+        onToggleLean={toggleLean}
       />
 
       <div className="app-body">
@@ -626,8 +665,13 @@ export default function App() {
             />
           ) : (
             <div className="editor-wrap">
-              <Toolbar onAction={runToolbarAction} activeFormats={activeFormats} />
-              <div className="editor-container">
+              <Toolbar
+                onAction={runToolbarAction}
+                activeFormats={activeFormats}
+                headingNumbering={!!settings.headingNumbering}
+                onToggleHeadingNumbering={toggleHeadingNumbering}
+              />
+              <div className={'editor-container' + (settings.headingNumbering ? ' heading-numbering' : '')}>
                 {activeTab && (
                   <Editor
                     key={activeTab.id}

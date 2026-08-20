@@ -30,14 +30,14 @@ export function installMockApi() {
     },
     exportHtml: async () => ({}),
     exportPdf: async () => ({}),
-    getSettings: async () => ({ theme: 'light' }),
+    getSettings: async () => ({ theme: 'light', headingNumbering: false, leanMode: false }),
     setSettings: async (p) => p,
     getRecentFiles: async () => [],
     addRecentFile: async () => [],
     clearRecentFiles: async () => [],
     setWindowTitle: async () => {},
     setDocumentEdited: async () => {},
-    onMenu: noopUnsub,
-    onOpenFile: noopUnsub,
+    onMenu: () => noopUnsub,
+    onOpenFile: () => noopUnsub,
   };
 }

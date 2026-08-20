@@ -5,9 +5,11 @@ export default function TitleBar({
   sidebarOpen,
   outlineOpen,
   theme,
+  leanMode,
   onToggleSidebar,
   onToggleOutline,
   onToggleTheme,
+  onToggleLean,
 }) {
   return (
     <div className="titlebar">
@@ -60,6 +62,24 @@ export default function TitleBar({
         ) : (
           <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6">
             <path d="M13 9.5A5.5 5.5 0 0 1 6.5 3 5.5 5.5 0 1 0 13 9.5z" />
+          </svg>
+        )}
+      </button>
+      <button
+        type="button"
+        className={'tb-btn' + (leanMode ? ' active' : '')}
+        onClick={onToggleLean}
+        title={leanMode ? '退出极简模式' : '极简模式'}
+        aria-label="极简模式"
+      >
+        {leanMode ? (
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6">
+            <path d="M2 3h12M2 8h12M2 13h12" />
+          </svg>
+        ) : (
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6">
+            <rect x="2" y="2.5" width="12" height="11" rx="1.5" />
+            <path d="M2 7h12M2 10h12" />
           </svg>
         )}
       </button>

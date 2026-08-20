@@ -18,6 +18,7 @@ import { mermaidPreview } from './mermaidPreview';
 import { focusMode, typewriterMode } from './modes';
 import { slash, configureSlash } from './slashMenu';
 import { taskListToggle } from './taskListToggle';
+import { tableSignal } from './tableSignal';
 import { codeBlockLanguage } from './codeBlockLanguage';
 import { codeBlockBackspace } from './codeBlockBackspace';
 import { headingBackspace } from './headingBackspace';
@@ -144,6 +145,7 @@ export function createMilkdown(root, { defaultValue = '', onMarkdownUpdated, onS
     .use(focusMode)
     .use(typewriterMode)
     .use(taskListToggle)
+    .use(tableSignal)
     .use(codeBlockLanguage)
     .use(codeBlockBackspace)
     .use(headingBackspace)

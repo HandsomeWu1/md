@@ -1,5 +1,6 @@
 import React, { useRef, useState } from 'react';
 import InputDialog from './InputDialog';
+import TablePicker from './TablePicker';
 
 // ===== 简洁线框 SVG 图标 =====
 const I = ({ children, viewBox = '0 0 16 16' }) => (
@@ -23,11 +24,13 @@ const ICONS = {
   link: <I><path d="M6.5 9.5 9.5 6.5" /><path d="M7.5 3.5 9 2a2.8 2.8 0 0 1 4 4l-2 2" /><path d="M8.5 12.5 7 14a2.8 2.8 0 0 1-4-4l2-2" /></I>,
   image: <I><rect x="2" y="2.5" width="12" height="11" rx="1.5" /><circle cx="5.5" cy="6" r="1.1" /><path d="M2.5 11.5 6 8l3 3 2-2 2.5 2.5" /></I>,
   paragraph: <I><path d="M3 3h6.5a2.5 2.5 0 0 1 0 5H3z" /><path d="M3 8h8.5a2.5 2.5 0 0 1 0 5H3z" /></I>,
+  headingNumbering: <I><path d="M3 2.5h3.5" /><path d="M3 7.5h3.5" /><path d="M3 12.5h3.5" /><path d="M3 2.5v5M3 7.5v5" /><path d="M9.5 4h3.5" /><path d="M9.5 9h3.5" /><path d="M9.5 14h3.5" /></I>,
 };
 
-function ToolButton({ title, icon, onClick, active }) {
+const ToolButton = React.forwardRef(function ToolButton({ title, icon, onClick, active }, ref) {
   return (
     <button
+      ref={ref}
       type="button"
       className={'tool-btn' + (active ? ' active' : '')}
       title={title}
@@ -37,17 +40,20 @@ function ToolButton({ title, icon, onClick, active }) {
       {icon}
     </button>
   );
-}
+});
 
 function Divider() {
   return <span className="tool-divider" />;
 }
 
-export default function Toolbar({ onAction, activeFormats = {} }) {
+export default function Toolbar({ onAction, activeFormats = {}, headingNumbering = false, onToggleHeadingNumbering }) {
   const fileInputRef = useRef(null);
   const [linkOpen, setLinkOpen] = useState(false);
   const [linkText, setLinkText] = useState('');
   const [linkHref, setLinkHref] = useState('');
+  // 表格选择器状态
+  const [tablePickerOpen, setTablePickerOpen] = useState(false);
+  const tableBtnRef = useRef(null);
 
   // 段落下拉的受控值：反映当前光标所在段落类型
   const headingValue = activeFormats.heading
@@ -124,7 +130,12 @@ export default function Toolbar({ onAction, activeFormats = {} }) {
       <Divider />
 
       <ToolButton title="代码块" icon={ICONS.codeBlock} active={activeFormats.codeBlock} onClick={() => onAction('codeBlock')} />
-      <ToolButton title="插入表格" icon={ICONS.table} onClick={() => onAction('table')} />
+      <ToolButton
+        title="插入表格"
+        icon={ICONS.table}
+        onClick={() => setTablePickerOpen(true)}
+        ref={tableBtnRef}
+      />
       <ToolButton title="分割线" icon={ICONS.hr} onClick={() => onAction('hr')} />
 
       <Divider />
@@ -143,6 +154,15 @@ export default function Toolbar({ onAction, activeFormats = {} }) {
         title="插入图片（选择本地文件）"
         icon={ICONS.image}
         onClick={() => fileInputRef.current?.click()}
+      />
+
+      <Divider />
+
+      <ToolButton
+        title={headingNumbering ? '关闭标题编号' : '开启标题编号'}
+        icon={ICONS.headingNumbering}
+        active={headingNumbering}
+        onClick={() => onToggleHeadingNumbering && onToggleHeadingNumbering()}
       />
 
       {/* 隐藏的本地图片选择 */}
@@ -172,6 +192,14 @@ export default function Toolbar({ onAction, activeFormats = {} }) {
           placeholder: '链接地址（如 https://example.com）',
           onChange: setLinkHref,
         }}
+      />
+
+      {/* 表格网格选择器 */}
+      <TablePicker
+        open={tablePickerOpen}
+        anchorRect={tableBtnRef.current?.getBoundingClientRect()}
+        onPick={(row, col) => onAction('tableInsert', { row, col })}
+        onClose={() => setTablePickerOpen(false)}
       />
 
     </div>

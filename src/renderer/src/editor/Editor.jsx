@@ -1,10 +1,11 @@
-import React, { forwardRef, useEffect, useImperativeHandle, useRef } from 'react';
+import React, { forwardRef, useEffect, useImperativeHandle, useRef, useState } from 'react';
 import { Milkdown, MilkdownProvider, useEditor } from '@milkdown/react';
 import { createMilkdown } from './createMilkdown';
 import { getMarkdown as getMarkdownAction, replaceAll as replaceAllAction } from '@milkdown/kit/utils';
 import { editorViewCtx } from '@milkdown/kit/core';
 import { undo, redo } from '@milkdown/kit/prose/history';
 import { getActiveFormats } from './selection';
+import TableFloatingToolbar from '../components/TableFloatingToolbar';
 
 function runWithView(editor, fn) {
   if (!editor) return;
@@ -20,6 +21,7 @@ const InnerEditor = forwardRef(function InnerEditor({ initialValue, onChange, on
   const onSelectionChangeRef = useRef(onSelectionChange);
   onSelectionChangeRef.current = onSelectionChange;
   const initialValueRef = useRef(initialValue);
+  const [pmView, setPmView] = useState(null);
 
   const { get, loading } = useEditor(
     (root) =>
@@ -46,6 +48,11 @@ const InnerEditor = forwardRef(function InnerEditor({ initialValue, onChange, on
     if (loading) return;
     const ed = get();
     if (!ed) return;
+    // 获取 ProseMirror view 实例供 TableFloatingToolbar 使用
+    ed.action((ctx) => {
+      const view = ctx.get(editorViewCtx);
+      if (view) setPmView(view);
+    });
     // 等编辑器 DOM 真正挂载后再聚焦
     const id = requestAnimationFrame(() => {
       runWithView(ed, (view) => view.focus());
@@ -79,7 +86,12 @@ const InnerEditor = forwardRef(function InnerEditor({ initialValue, onChange, on
     [get, loading]
   );
 
-  return <Milkdown />;
+  return (
+    <>
+      <Milkdown />
+      {pmView && <TableFloatingToolbar view={pmView} />}
+    </>
+  );
 });
 
 export default forwardRef(function Editor(props, ref) {

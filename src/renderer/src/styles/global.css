@@ -118,12 +118,12 @@ body {
 }
 
 .titlebar {
-  height: 38px;
-  flex: 0 0 38px;
+  height: 36px;
+  flex: 0 0 36px;
   display: flex;
   align-items: center;
   padding-left: 80px; /* 给 macOS 红绿灯留位 */
-  padding-right: 10px;
+  padding-right: 8px;
   background: var(--titlebar-bg);
   border-bottom: 1px solid var(--border);
   -webkit-app-region: drag;
@@ -145,8 +145,8 @@ body {
   border: none;
   background: transparent;
   color: var(--text-muted);
-  width: 30px;
-  height: 26px;
+  width: 28px;
+  height: 28px;
   border-radius: 6px;
   cursor: pointer;
   display: inline-flex;
@@ -168,8 +168,8 @@ body {
 
 /* ===== 侧栏 ===== */
 .sidebar {
-  width: 236px;
-  flex: 0 0 236px;
+  width: 240px;
+  flex: 0 0 240px;
   background: var(--bg-sidebar);
   border-right: 1px solid var(--border);
   display: flex;
@@ -242,7 +242,7 @@ body {
   display: flex;
   align-items: center;
   gap: 2px;
-  padding: 6px 12px;
+  padding: 4px 10px;
   background: var(--bg);
   border-bottom: 1px solid var(--border);
   user-select: none;
@@ -389,6 +389,53 @@ body {
   font-size: 0.9em;
   color: var(--text-muted);
 }
+
+/* ===== 标题自动编号（纯展示层，不写入 markdown 源） ===== */
+/* counter-set 替代 counter-reset：直接在同一 scope 把下级 counter 设为 0，
+   这样后续兄弟 heading 也能从 0 开始递增。counter-reset 会创建新 scope 并在
+   scope 结束时回退，导致跨兄弟的 h2/h3 编号无法重置。 */
+.editor-container.heading-numbering .milkdown {
+  counter-reset: hn1 hn2 hn3 hn4 hn5 hn6;
+}
+.editor-container.heading-numbering .milkdown h1 {
+  counter-set: hn2 0 hn3 0 hn4 0 hn5 0 hn6 0;
+}
+.editor-container.heading-numbering .milkdown h2 {
+  counter-set: hn3 0 hn4 0 hn5 0 hn6 0;
+}
+.editor-container.heading-numbering .milkdown h3 {
+  counter-set: hn4 0 hn5 0 hn6 0;
+}
+.editor-container.heading-numbering .milkdown h4 {
+  counter-set: hn5 0 hn6 0;
+}
+.editor-container.heading-numbering .milkdown h5 {
+  counter-set: hn6 0;
+}
+.editor-container.heading-numbering .milkdown h1::before {
+  counter-increment: hn1;
+  content: counter(hn1) " ";
+}
+.editor-container.heading-numbering .milkdown h2::before {
+  counter-increment: hn2;
+  content: counter(hn1) "." counter(hn2) " ";
+}
+.editor-container.heading-numbering .milkdown h3::before {
+  counter-increment: hn3;
+  content: counter(hn1) "." counter(hn2) "." counter(hn3) " ";
+}
+.editor-container.heading-numbering .milkdown h4::before {
+  counter-increment: hn4;
+  content: counter(hn1) "." counter(hn2) "." counter(hn3) "." counter(hn4) " ";
+}
+.editor-container.heading-numbering .milkdown h5::before {
+  counter-increment: hn5;
+  content: counter(hn1) "." counter(hn2) "." counter(hn3) "." counter(hn4) "." counter(hn5) " ";
+}
+.editor-container.heading-numbering .milkdown h6::before {
+  counter-increment: hn6;
+  content: counter(hn1) "." counter(hn2) "." counter(hn3) "." counter(hn4) "." counter(hn5) "." counter(hn6) " ";
+}
 .editor-container .milkdown p {
   margin: 0.8em 0;
 }
@@ -495,12 +542,12 @@ body {
 }
 .editor-container .milkdown table {
   border-collapse: collapse;
-  margin: 1.2em 0;
+  margin: 1em 0;
   width: 100%;
   font-size: 0.95em !important;
   line-height: 1.65 !important;
   border: 1px solid var(--table-border);
-  border-radius: 8px;
+  border-radius: 6px;
   overflow: hidden;
   box-shadow: none !important;
 }
@@ -512,12 +559,16 @@ body {
   vertical-align: top;
   /* 覆盖 nord 主题给 nth-child(odd) 强加的浅灰背景 */
   background: transparent !important;
+  font-family: var(--editor-font);
 }
 .editor-container .milkdown th {
-  background: var(--table-head-bg) !important;
+  background: #f5f6f8 !important;
   font-weight: 600;
   color: var(--heading);
-  border-bottom: 1px solid var(--table-head-border);
+  border-bottom: 2px solid var(--table-head-border);
+}
+[data-theme='dark'] .editor-container .milkdown th {
+  background: #2a2b2e !important;
 }
 .editor-container .milkdown th p,
 .editor-container .milkdown td p {
@@ -526,9 +577,7 @@ body {
 .editor-container .milkdown tbody tr:nth-child(even) td {
   background: var(--table-stripe-bg) !important;
 }
-.editor-container .milkdown tbody tr:hover td {
-  background: var(--bg-hover) !important;
-}
+/* 去掉表格行 hover 效果，保持极简 */
 .editor-container .milkdown ::selection {
   background: var(--selection);
 }
@@ -856,7 +905,7 @@ body {
   flex: 0 0 auto;
   display: flex;
   align-items: stretch;
-  height: 38px;
+  height: 30px;
   background: var(--bg-sidebar);
   border-bottom: 1px solid var(--border);
 }
@@ -1364,7 +1413,6 @@ body {
 .modal-input + .modal-input {
   margin-top: 8px;
 }
-}
 .modal-input:focus {
   border-color: var(--accent);
   box-shadow: 0 0 0 2px var(--selection);
@@ -1398,5 +1446,135 @@ body {
 }
 .modal-btn.primary:hover {
   background: var(--accent-hover);
+}
+
+/* ===== 表格网格选择器 (TablePicker) ===== */
+.table-picker {
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-strong);
+  border-radius: 8px;
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.15);
+  padding: 12px;
+  min-width: 240px;
+}
+.table-picker-grid {
+  display: grid;
+  grid-template-columns: repeat(10, 22px);
+  grid-template-rows: repeat(6, 22px);
+  gap: 3px;
+  justify-content: center;
+}
+.table-picker-cell {
+  width: 22px;
+  height: 22px;
+  border: 1.5px solid var(--border-strong);
+  border-radius: 3px;
+  background: transparent;
+  cursor: pointer;
+  transition: all 0.08s ease;
+  box-sizing: border-box;
+}
+.table-picker-cell:hover {
+  border-color: var(--accent);
+}
+.table-picker-cell.active {
+  background: rgba(65, 131, 196, 0.18);
+  border-color: var(--accent);
+}
+.table-picker-info {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 10px;
+  padding-top: 8px;
+  border-top: 1px solid var(--border);
+  font-size: 13px;
+  color: var(--text-secondary);
+  font-weight: 500;
+}
+.table-picker-ok,
+.table-picker-cancel {
+  padding: 4px 12px;
+  border-radius: 5px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--text);
+  font-size: 12px;
+  cursor: pointer;
+  transition: background 0.1s ease;
+  margin-left: 6px;
+}
+.table-picker-ok:hover:not(:disabled) {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+.table-picker-ok:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+.table-picker-cancel:hover {
+  background: var(--bg-hover);
+}
+
+/* ===== 表格浮动工具条 (TableFloatingToolbar) ===== */
+.table-floating-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 4px 6px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  box-shadow: 0 3px 14px rgba(0, 0, 0, 0.12);
+  font-size: 11.5px;
+  white-space: nowrap;
+  user-select: none;
+}
+.table-floating-toolbar button {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 3px 7px;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+  font-size: 11.5px;
+  line-height: 1;
+  transition: background 0.1s ease, color 0.1s ease;
+  font-family: var(--editor-font);
+}
+.table-floating-toolbar button:hover {
+  background: var(--bg-hover);
+  color: var(--text);
+}
+.table-floating-toolbar button.danger:hover {
+  background: rgba(211, 51, 51, 0.1);
+  color: #d33;
+}
+.tft-sep {
+  width: 1px;
+  height: 16px;
+  background: var(--border);
+  margin: 0 3px;
+}
+
+/* ===== 极简模式 (Lean Mode) ===== */
+.app.lean-mode .titlebar { display: none; }
+.app.lean-mode .sidebar { display: none !important; }
+.app.lean-mode .tabbar { display: none; }
+.app.lean-mode .statusbar { display: none; }
+.app.lean-mode .toolbar { display: none; }
+.app.lean-mode .editor-container {
+  padding-top: 20px !important;
+}
+.app.lean-mode .editor-wrap {
+  padding: 0 !important;
+  margin: 0 !important;
+}
+.app.lean-mode .main-area {
+  /* 编辑器内容占满窗口 */
 }
 

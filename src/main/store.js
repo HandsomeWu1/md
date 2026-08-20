@@ -6,6 +6,8 @@ const path = require('path');
 const DEFAULTS = {
   theme: 'light',
   lastOpenedFolder: null,
+  headingNumbering: false,
+  leanMode: false,
 };
 
 class SettingsStore {

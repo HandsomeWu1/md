@@ -45,7 +45,8 @@ export const actions = {
   blockquote: (editor) => editor.action(callCommand(wrapInBlockquoteCommand.key)),
 
   codeBlock: (editor) => editor.action(callCommand(createCodeBlockCommand.key)),
-  table: (editor) => editor.action(callCommand(insertTableCommand.key, { row: 3, col: 3 })),
+  table: (editor, { row = 3, col = 3 } = {}) => editor.action(callCommand(insertTableCommand.key, { row, col })),
+  tableInsert: (editor, { row = 3, col = 3 } = {}) => editor.action(callCommand(insertTableCommand.key, { row, col })),
   hr: (editor) => editor.action(callCommand(insertHrCommand.key)),
 
   // 链接：
