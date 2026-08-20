@@ -37,6 +37,10 @@ function renderInto(el, code) {
  *  - 编辑模式：显示可编辑源码输入区（contentDOM）+「完成」按钮
  *  - 双击预览图 / 点「编辑源码」→ 编辑模式；点「完成」→ 预览模式
  *  - 刚插入的空 mermaid 块直接进入编辑模式
+ *
+ * 关键：必须实现 ignoreMutation，忽略 contentDOM（editor）之外的 DOM 变化，
+ * 否则 renderInto 修改 preview 会触发 ProseMirror MutationObserver →
+ * 标记节点 dirty → 重渲染 → update() → renderInto 的死循环（表现为卡死）。
  */
 class MermaidBlockView {
   constructor(node, view, getPos) {
@@ -63,7 +67,6 @@ class MermaidBlockView {
     // 编辑区（contentDOM，ProseMirror 管理内容）
     this.editor = document.createElement('div');
     this.editor.className = 'mermaid-editor';
-    this.editor.contentEditable = 'true';
     this.editor.setAttribute('data-gramm', 'false');
     this.editor.spellcheck = false;
 
@@ -82,6 +85,8 @@ class MermaidBlockView {
     this.dom.appendChild(this.doneBar);
 
     this.mode = 'preview';
+    this.renderTimer = null;
+
     this.editBtn.addEventListener('mousedown', (e) => {
       e.preventDefault();
       e.stopPropagation();
@@ -109,6 +114,11 @@ class MermaidBlockView {
   // contentDOM：ProseMirror 用它编辑 code_block 的文本内容
   get contentDOM() {
     return this.editor;
+  }
+
+  // 关键：忽略 contentDOM（editor）之外的 DOM 变化，避免 renderInto 触发的死循环
+  ignoreMutation(mutation) {
+    return !this.editor.contains(mutation.target);
   }
 
   showPreview() {
@@ -139,14 +149,18 @@ class MermaidBlockView {
 
   update(node) {
     this.node = node;
-    // 预览模式下代码变化（如撤销）时重新渲染
+    // 预览模式下代码变化（如撤销/外部更新）时防抖重新渲染
     if (this.mode === 'preview') {
-      renderInto(this.preview, node.textContent);
+      if (this.renderTimer) clearTimeout(this.renderTimer);
+      this.renderTimer = setTimeout(() => {
+        renderInto(this.preview, this.node.textContent);
+      }, 200);
     }
     return true;
   }
 
   destroy() {
+    if (this.renderTimer) clearTimeout(this.renderTimer);
     this.dom.remove();
   }
 }
