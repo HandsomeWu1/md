@@ -135,6 +135,7 @@ export default function App() {
     setExpanded(new Set());
     setChildrenMap({});
     const treeRes = await api.listTree(res.folderPath);
+    console.error('[openFolder] folderPath =', res.folderPath, '| listTree 结果 =', JSON.stringify(treeRes));
     setFileTree(treeRes.ok ? treeRes.tree || [] : []);
     setSidebarOpen(true);
     setSidebarMode('files');

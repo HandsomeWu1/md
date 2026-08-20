@@ -18,6 +18,7 @@ function safe(fn) {
     try {
       return { ok: true, ...(await fn(...args)) };
     } catch (err) {
+      console.error('[IPC error]', err && err.stack ? err.stack : err);
       return { ok: false, error: err.message };
     }
   };

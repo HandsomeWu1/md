@@ -44,18 +44,30 @@ function grantFile(file) {
 // 之前递归遍历整个树（包括 node_modules 等大目录）会导致打开文件夹时卡死或权限错误。
 function listTree(root) {
   requireAllowed(root);
-  return fs
-    .readdirSync(root, { withFileTypes: true })
-    .filter((d) => !d.name.startsWith('.'))
-    .map((d) => {
-      const full = path.join(root, d.name);
-      const isDir = d.isDirectory();
-      return { name: d.name, path: full, type: isDir ? 'dir' : 'file' };
-    })
-    .sort((a, b) => {
-      if (a.type !== b.type) return a.type === 'dir' ? -1 : 1;
-      return a.name.localeCompare(b.name, 'zh-Hans-CN');
-    });
+  let entries;
+  try {
+    entries = fs.readdirSync(root, { withFileTypes: true });
+  } catch (err) {
+    console.error('[file-service] readdirSync 失败:', root, '-', err.message);
+    throw err;
+  }
+  try {
+    return entries
+      .filter((d) => !d.name.startsWith('.'))
+      .map((d) => {
+        const full = path.join(root, d.name);
+        const isDir = d.isDirectory();
+        return { name: d.name, path: full, type: isDir ? 'dir' : 'file' };
+      })
+      .sort((a, b) => {
+        if (a.type !== b.type) return a.type === 'dir' ? -1 : 1;
+        // 不指定 locale，避免部分环境 ICU 不支持 zh-Hans-CN 导致 RangeError
+        return a.name.localeCompare(b.name);
+      });
+  } catch (err) {
+    console.error('[file-service] listTree 处理失败:', root, '-', err && err.stack ? err.stack : err);
+    throw err;
+  }
 }
 
 function readFile(p) {
