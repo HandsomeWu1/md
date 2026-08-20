@@ -12,9 +12,12 @@ function getWin(e) {
   return BrowserWindow.fromWebContents(e.sender);
 }
 
-// 将同步/异步处理器包装为 { ok, ... } 结构，避免渲染层收到异常
+// 将同步/异步处理器包装为 { ok, ... } 结构，避免渲染层收到异常。
+// 关键：ipcMain.handle 的 handler 第一个参数是 event（IpcMainInvokeEvent），
+// 渲染层 invoke 传的参数从第二个开始。这里用 _event 接收并跳过它，
+// 再把真正的参数传给 fn。
 function safe(fn) {
-  return async (...args) => {
+  return async (_event, ...args) => {
     try {
       return { ok: true, ...(await fn(...args)) };
     } catch (err) {
