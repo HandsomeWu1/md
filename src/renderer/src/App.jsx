@@ -353,12 +353,15 @@ export default function App() {
       const res = await api.saveFileDialog(name);
       if (res.canceled || !res.filePath) return;
       const w = await api.writeFile(res.filePath, t.markdown);
-      if (w.ok) {
-        updateTab(id, { path: res.filePath, name: baseName(res.filePath), dirty: false, savedAt: w.savedAt });
-        addRecent(res.filePath);
-        // 保存后刷新文件树，让新文件立即显示
-        await refreshTree();
+      if (!w.ok) {
+        // 保存失败：明确提示，不静默吞错
+        window.alert(`保存失败：${w.error || '未知错误'}`);
+        return;
       }
+      updateTab(id, { path: res.filePath, name: baseName(res.filePath), dirty: false, savedAt: w.savedAt });
+      addRecent(res.filePath);
+      // 保存后刷新文件树，让新文件立即显示
+      await refreshTree();
     },
     [updateTab, addRecent, refreshTree]
   );
@@ -372,6 +375,8 @@ export default function App() {
         if (res.ok) {
           updateTab(id, { dirty: false, savedAt: res.savedAt });
           api.setDocumentEdited(false);
+        } else {
+          window.alert(`保存失败：${res.error || '未知错误'}`);
         }
       } else {
         await saveAs(id);
@@ -634,6 +639,11 @@ export default function App() {
         }}
         onToggleTheme={toggleTheme}
         onToggleLean={toggleLean}
+        onSave={activeTabId ? () => doSave(activeTabId) : null}
+        onSaveAs={activeTabId ? () => saveAs(activeTabId) : null}
+        onRename={activeTab && activeTab.path ? () => renamePath(activeTab.path, false) : null}
+        onReveal={activeTab && activeTab.path ? () => revealPath(activeTab.path) : null}
+        onClose={activeTabId ? () => closeTab(activeTabId) : null}
       />
 
       <div className="app-body">

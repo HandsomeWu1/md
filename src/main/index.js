@@ -50,7 +50,9 @@ function createWindow() {
     minHeight: 480,
     title: 'Typora Dev',
     show: true,
-    backgroundColor: '#ffffff',
+    // 背景色 = 渲染层 --bg，确保 TitleBar 透明时整窗无缝衔接。
+    // 跟随主题切换：构造时取一次，避免主题切换瞬间白闪。
+    backgroundColor: settingsStore.get().theme === 'dark' ? '#1f1f1f' : '#ffffff',
     titleBarStyle: 'hiddenInset',
     trafficLightPosition: { x: 16, y: 16 },
     webPreferences: {

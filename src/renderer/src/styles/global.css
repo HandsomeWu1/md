@@ -1,7 +1,7 @@
 /* ===== 主题变量 ===== */
 :root {
   --bg: #ffffff;
-  --bg-app: #f5f5f7;
+  --bg-app: #ffffff;            /* 与 --bg 同色，让 TitleBar 看起来"无" */
   --bg-sidebar: #f5f5f7;
   --bg-elevated: #ffffff;
   --bg-hover: rgba(0, 0, 0, 0.045);
@@ -25,7 +25,7 @@
   --table-stripe-bg: #fafbfc;
   --table-head-border: #d0d0d4;
   --scrollbar: rgba(0, 0, 0, 0.2);
-  --titlebar-bg: #f5f5f7;
+  --titlebar-bg: transparent;   /* 透明背景，与下方编辑区无缝衔接 */
   --find-match: #ffe873;
   --shadow: 0 6px 24px rgba(0, 0, 0, 0.12);
   --editor-font: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
@@ -45,7 +45,7 @@
 
 [data-theme='dark'] {
   --bg: #1f1f1f;
-  --bg-app: #1b1b1b;
+  --bg-app: #1f1f1f;            /* 与 --bg 同色 */
   --bg-sidebar: #252526;
   --bg-elevated: #2a2a2b;
   --bg-hover: rgba(255, 255, 255, 0.06);
@@ -69,7 +69,7 @@
   --table-stripe-bg: #262628;
   --table-head-border: #525255;
   --scrollbar: rgba(255, 255, 255, 0.22);
-  --titlebar-bg: #252526;
+  --titlebar-bg: transparent;   /* dark 模式也透明 */
   --find-match: #6a5d00;
   --shadow: 0 6px 24px rgba(0, 0, 0, 0.5);
   --tok-comment: #6a9955;
@@ -122,31 +122,28 @@ body {
   flex: 0 0 36px;
   display: flex;
   align-items: center;
-  padding-left: 80px; /* 给 macOS 红绿灯留位 */
-  padding-right: 8px;
-  background: var(--titlebar-bg);
-  border-bottom: 1px solid var(--border);
+  /* macOS 红绿灯占位在最左侧 80px，靠 grid 三栏布局：左按钮 / 中标题 / 右按钮 */
+  padding: 0 12px;
+  background: var(--titlebar-bg);  /* 透明：与下方编辑区同色 */
+  border-bottom: none;              /* 不画分隔线，让视觉上"无 TitleBar" */
   -webkit-app-region: drag;
   user-select: none;
+  position: relative;
+  z-index: 100;
 }
-.titlebar .title {
-  font-size: 12px;
-  font-weight: 500;
-  color: var(--text-muted);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+.titlebar .titlebar-traffic {
+  /* macOS 红绿灯占位（隐藏按钮可点，透明） */
+  width: 70px;
+  flex: 0 0 70px;
+  -webkit-app-region: drag;
 }
-.titlebar .spacer {
-  flex: 1;
-}
-.titlebar .tb-btn {
+.titlebar > .tb-btn {
   -webkit-app-region: no-drag;
   border: none;
   background: transparent;
   color: var(--text-muted);
-  width: 28px;
-  height: 28px;
+  width: 26px;
+  height: 26px;
   border-radius: 6px;
   cursor: pointer;
   display: inline-flex;
@@ -155,9 +152,82 @@ body {
   font-size: 14px;
   transition: background 0.12s ease, color 0.12s ease;
 }
-.titlebar .tb-btn:hover {
+.titlebar > .tb-btn:hover {
   background: var(--bg-hover);
   color: var(--text);
+}
+.titlebar-center {
+  flex: 1;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-width: 0;
+  -webkit-app-region: no-drag;
+  position: relative;
+}
+.titlebar-title-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px;
+  border-radius: 6px;
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 12.5px;
+  cursor: pointer;
+  max-width: 60%;
+  -webkit-app-region: no-drag;
+  transition: background 0.12s ease, color 0.12s ease;
+}
+.titlebar-title-btn:hover {
+  background: var(--bg-hover);
+  color: var(--text);
+}
+.titlebar-title-btn .title {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 400px;
+}
+.titlebar-title-btn .caret {
+  flex-shrink: 0;
+  opacity: 0.7;
+}
+.titlebar-menu {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  box-shadow: var(--shadow);
+  padding: 4px;
+  min-width: 180px;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  z-index: 2000;
+}
+.titlebar-menu button {
+  border: none;
+  background: transparent;
+  text-align: left;
+  padding: 6px 12px;
+  font-size: 13px;
+  color: var(--text);
+  border-radius: 4px;
+  cursor: pointer;
+  font-family: inherit;
+}
+.titlebar-menu button:hover {
+  background: var(--bg-hover);
+}
+.titlebar-menu-sep {
+  height: 1px;
+  background: var(--border);
+  margin: 4px 6px;
 }
 
 .app-body {
@@ -702,7 +772,7 @@ body {
 }
 
 /* ===== 标题栏激活态 ===== */
-.titlebar .tb-btn.active {
+.titlebar > .tb-btn.active {
   background: var(--bg-active);
   color: var(--text);
 }

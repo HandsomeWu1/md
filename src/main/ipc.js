@@ -61,6 +61,13 @@ function registerIpc() {
       defaultPath: name || 'untitled.md',
       filters: MARKDOWN_FILTERS,
     });
+    // 关键：用户主动通过对话框选中的路径必须授权，否则后续 file:write
+    // 会因「未授权」被 file-service 拒绝，导致新建文件保存假成功。
+    if (!canceled && filePath) {
+      try {
+        fileService.grantFile(filePath);
+      } catch {}
+    }
     return { canceled, filePath };
   });
 

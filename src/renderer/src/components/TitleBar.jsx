@@ -1,5 +1,12 @@
-import React from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 
+/**
+ * Typora 风格的极简 TitleBar：
+ * 1. 文件名居中（不放在左侧）
+ * 2. 文件名旁边有向下小箭头，点击下拉显示「保存 / 另存为 / 重命名 / 在 Finder 中显示 / 关闭」
+ * 3. 整个 TitleBar 背景色 = 编辑器背景色，**无 border-bottom**，让用户视觉上感觉「没有 TitleBar」
+ * 4. macOS 红绿灯区域（左侧 80px）始终留给系统，仅占位透明
+ */
 export default function TitleBar({
   title,
   sidebarOpen,
@@ -10,11 +17,39 @@ export default function TitleBar({
   onToggleOutline,
   onToggleTheme,
   onToggleLean,
+  // 文件级操作
+  onSave,
+  onSaveAs,
+  onRename,
+  onReveal,
+  onClose,
 }) {
+  const [menuOpen, setMenuOpen] = useState(false);
+  const menuRef = useRef(null);
+
+  useEffect(() => {
+    if (!menuOpen) return;
+    const handler = (e) => {
+      if (menuRef.current && !menuRef.current.contains(e.target)) {
+        setMenuOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [menuOpen]);
+
+  const closeMenu = () => setMenuOpen(false);
+  const runAndClose = (fn) => () => {
+    closeMenu();
+    if (fn) fn();
+  };
+
   return (
     <div className="titlebar">
-      <span className="title">{title}</span>
-      <span className="spacer" />
+      {/* macOS 红绿灯占位区（透明，仅 padding 宽度），-webkit-app-region: drag */}
+      <div className="titlebar-traffic" />
+
+      {/* 左侧：侧栏 + 大纲按钮（非极简模式常驻；极简模式依然常驻这些图标方便切换） */}
       <button
         type="button"
         className={'tb-btn' + (sidebarOpen ? ' active' : '')}
@@ -40,6 +75,33 @@ export default function TitleBar({
           <line x1="6" y1="12" x2="13" y2="12" />
         </svg>
       </button>
+
+      {/* 中间：居中的文件名 + 下拉 */}
+      <div className="titlebar-center" ref={menuRef}>
+        <button
+          type="button"
+          className="titlebar-title-btn"
+          onClick={() => setMenuOpen((v) => !v)}
+          title={title}
+        >
+          <span className="title">{title || '未命名'}</span>
+          <svg className="caret" width="10" height="10" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M3 5l3 3 3-3" />
+          </svg>
+        </button>
+        {menuOpen && (
+          <div className="titlebar-menu" onMouseDown={(e) => e.stopPropagation()}>
+            <button type="button" onClick={runAndClose(onSave)}>保存</button>
+            <button type="button" onClick={runAndClose(onSaveAs)}>另存为…</button>
+            <button type="button" onClick={runAndClose(onRename)}>重命名…</button>
+            <button type="button" onClick={runAndClose(onReveal)}>在 Finder 中显示</button>
+            <div className="titlebar-menu-sep" />
+            <button type="button" onClick={runAndClose(onClose)}>关闭</button>
+          </div>
+        )}
+      </div>
+
+      {/* 右侧：主题切换 + 极简模式 */}
       <button
         type="button"
         className="tb-btn"
