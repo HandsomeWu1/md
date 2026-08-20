@@ -22,6 +22,7 @@ import { codeBlockLanguage } from './codeBlockLanguage';
 import { codeBlockBackspace } from './codeBlockBackspace';
 import { headingBackspace } from './headingBackspace';
 import { linkInputRule } from './linkInputRule';
+import { linkBackspace } from './linkBackspace';
 import { nord } from '@milkdown/theme-nord';
 import '@milkdown/theme-nord/style.css';
 import '@milkdown/kit/prose/view/style/prosemirror.css';
@@ -134,6 +135,7 @@ export function createMilkdown(root, { defaultValue = '', onMarkdownUpdated, onS
     .use(prism)
     .use(emojiPlugins)
     .use(linkInputRule)
+    .use(linkBackspace)
     .use(math)
     .use(upload)
     .use(mermaidPreview)
