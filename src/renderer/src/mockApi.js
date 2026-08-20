@@ -37,6 +37,8 @@ export function installMockApi() {
     clearRecentFiles: async () => [],
     setWindowTitle: async () => {},
     setDocumentEdited: async () => {},
+    confirmAppClose: async () => {},
+    onBeforeClose: () => noopUnsub,
     onMenu: () => noopUnsub,
     onOpenFile: () => noopUnsub,
   };

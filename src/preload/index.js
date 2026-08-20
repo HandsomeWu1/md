@@ -35,6 +35,14 @@ const api = {
   // 窗口
   setWindowTitle: (title) => ipcRenderer.invoke('window:set-title', title),
   setDocumentEdited: (edited) => ipcRenderer.invoke('window:set-edited', edited),
+  confirmAppClose: () => ipcRenderer.invoke('app:confirm-close'),
+
+  // 关闭窗口前事件（主进程 → 渲染进程）
+  onBeforeClose: (cb) => {
+    const handler = () => cb();
+    ipcRenderer.on('app:before-close', handler);
+    return () => ipcRenderer.removeListener('app:before-close', handler);
+  },
 
   // 菜单事件（主进程 → 渲染进程）
   onMenu: (cb) => {

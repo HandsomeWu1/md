@@ -132,12 +132,19 @@ body {
   z-index: 100;
 }
 .titlebar .titlebar-traffic {
-  /* macOS 红绿灯占位（隐藏按钮可点，透明） */
+  /* macOS 红绿灯占位（可拖动） */
   width: 70px;
   flex: 0 0 70px;
   -webkit-app-region: drag;
 }
-.titlebar > .tb-btn {
+.titlebar-actions {
+  -webkit-app-region: no-drag;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  flex: 0 0 auto;
+}
+.titlebar .tb-btn {
   -webkit-app-region: no-drag;
   border: none;
   background: transparent;
@@ -152,7 +159,7 @@ body {
   font-size: 14px;
   transition: background 0.12s ease, color 0.12s ease;
 }
-.titlebar > .tb-btn:hover {
+.titlebar .tb-btn:hover {
   background: var(--bg-hover);
   color: var(--text);
 }
@@ -162,7 +169,8 @@ body {
   justify-content: center;
   align-items: center;
   min-width: 0;
-  -webkit-app-region: no-drag;
+  /* 中间区域可拖动（仅文件名按钮本身 no-drag），增大窗口拖动范围 */
+  -webkit-app-region: drag;
   position: relative;
 }
 .titlebar-title-btn {
@@ -304,6 +312,13 @@ body {
   overflow-y: auto;
   background: var(--bg);
   scroll-behavior: smooth;
+}
+/* 包裹 Milkdown 的可点击层：占满容器高度，空白区域点击也能定位光标 */
+.editor-click-area {
+  min-height: 100%;
+  cursor: text;
+  display: flex;
+  flex-direction: column;
 }
 
 /* ===== 工具栏 ===== */
@@ -772,7 +787,7 @@ body {
 }
 
 /* ===== 标题栏激活态 ===== */
-.titlebar > .tb-btn.active {
+.titlebar .tb-btn.active {
   background: var(--bg-active);
   color: var(--text);
 }
@@ -1644,20 +1659,31 @@ body {
   flex: 0 0 40px;
   -webkit-app-region: drag;   /* 整条可拖动窗口 */
 }
-.app.lean-mode .titlebar > .tb-btn {
-  display: none;               /* 隐藏侧栏/大纲/主题/极简按钮 */
+.app.lean-mode .titlebar-actions {
+  display: none;               /* 隐藏右侧侧栏/大纲/主题/极简按钮 */
 }
 /* 红绿灯占位在极简模式下仍保留，避免与系统按钮重叠 */
 .app.lean-mode .titlebar .titlebar-traffic {
   width: 70px;
   flex: 0 0 70px;
 }
-/* 文件名绝对居中（不受左右按钮/占位影响） */
+/* 极简模式下 center 用全宽 absolute，文件名不受 max-width:60% 循环截断 */
 .app.lean-mode .titlebar-center {
   position: absolute;
-  left: 50%;
-  top: 50%;
-  transform: translate(-50%, -50%);
+  left: 70px;                  /* 跳过红绿灯占位 70px */
+  right: 12px;                 /* 右边距 */
+  top: 0;
+  bottom: 0;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  transform: none;             /* 覆盖默认 translate(-50%,-50%) */
+}
+.app.lean-mode .titlebar-title-btn {
+  max-width: 100%;             /* 覆盖默认 60%，否则会和 absolute 容器形成循环截断 */
+}
+.app.lean-mode .titlebar-title-btn .title {
+  max-width: 600px;            /* 极简模式给文件名更宽显示空间 */
 }
 
 .app.lean-mode .editor-container {

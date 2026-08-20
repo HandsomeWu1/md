@@ -158,6 +158,13 @@ function registerIpc() {
   ipcMain.handle('window:set-edited', (e, edited) => {
     getWin(e)?.setDocumentEdited(!!edited);
   });
+
+  // 渲染层确认关闭（未保存文档已处理完毕）后，真正销毁窗口。
+  // 用 destroy() 跳过 close 拦截，避免再次触发 app:before-close 死循环。
+  ipcMain.handle('app:confirm-close', (e) => {
+    const win = getWin(e);
+    if (win && !win.isDestroyed()) win.destroy();
+  });
 }
 
 module.exports = { registerIpc };

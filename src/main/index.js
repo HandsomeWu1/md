@@ -96,6 +96,13 @@ function createWindow() {
     mainWindow.loadFile(path.join(__dirname, '../../dist/renderer/index.html'));
   }
 
+  // 关闭窗口前拦截：通知渲染层检查未保存文档，由渲染层决定是否真正关闭。
+  // （极简模式/直接点红绿灯关闭时，未保存内容不应静默丢失。）
+  mainWindow.on('close', (event) => {
+    event.preventDefault();
+    mainWindow.webContents.send('app:before-close');
+  });
+
   // 窗口已在构造时 show: true，这里只做加载结果日志。
   mainWindow.webContents.on('did-finish-load', () => log('DID FINISH LOAD'));
   mainWindow.on('closed', () => {

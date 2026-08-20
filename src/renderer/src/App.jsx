@@ -572,6 +572,36 @@ export default function App() {
     };
   }, []);
 
+  // 关闭窗口前：逐个确认未保存文档，全部处理完后才真正关闭。
+  // （极简模式 / 直接点红绿灯关闭时，未保存内容不应静默丢失。）
+  const handleBeforeClose = useCallback(async () => {
+    const dirtyTabs = tabsRef.current.filter((t) => t.dirty);
+    for (const t of dirtyTabs) {
+      const res = await api.confirmClose(t.name || '未命名');
+      if (res.response === 2) return; // 取消：中止关闭
+      if (res.response === 0) {
+        // 保存后再关闭
+        if (t.path) {
+          const w = await api.writeFile(t.path, t.markdown);
+          if (!w.ok) { window.alert(`保存失败：${w.error || '未知错误'}`); return; }
+        } else {
+          const name = (t.name || '未命名') + '.md';
+          const sv = await api.saveFileDialog(name);
+          if (sv.canceled || !sv.filePath) return; // 取消另存为 = 中止关闭
+          const w = await api.writeFile(sv.filePath, t.markdown);
+          if (!w.ok) { window.alert(`保存失败：${w.error || '未知错误'}`); return; }
+        }
+      }
+      // response === 1（不保存）继续下一个
+    }
+    api.confirmAppClose();
+  }, []);
+
+  useEffect(() => {
+    const off = api.onBeforeClose(() => handleBeforeClose());
+    return off;
+  }, [handleBeforeClose]);
+
   // 极简模式快捷键：Cmd+Shift+L（macOS）/ Ctrl+Shift+L（其他）
   useEffect(() => {
     const onKey = (e) => {

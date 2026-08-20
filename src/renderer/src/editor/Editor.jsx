@@ -1,9 +1,10 @@
-import React, { forwardRef, useEffect, useImperativeHandle, useRef, useState } from 'react';
+import React, { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState } from 'react';
 import { Milkdown, MilkdownProvider, useEditor } from '@milkdown/react';
 import { createMilkdown } from './createMilkdown';
 import { getMarkdown as getMarkdownAction, replaceAll as replaceAllAction } from '@milkdown/kit/utils';
 import { editorViewCtx } from '@milkdown/kit/core';
 import { undo, redo } from '@milkdown/kit/prose/history';
+import { TextSelection } from '@milkdown/prose/state';
 import { getActiveFormats } from './selection';
 import TableFloatingToolbar from '../components/TableFloatingToolbar';
 
@@ -60,6 +61,27 @@ const InnerEditor = forwardRef(function InnerEditor({ initialValue, onChange, on
     return () => cancelAnimationFrame(id);
   }, [loading, get]);
 
+  // 点击编辑器容器空白区域（ProseMirror 内容之外）时，把光标定位到文档开头（空文档即第一行）。
+  // Milkdown 空文档只有一个段落，contentDOM 高度只有一行，导致下方大片空白不可点击。
+  const handleContainerClick = useCallback(
+    (e) => {
+      const pm = e.currentTarget.querySelector('.ProseMirror');
+      if (pm && pm.contains(e.target)) return; // 点在正文内，交给编辑器处理
+      const ed = get();
+      if (!ed) return;
+      ed.action((ctx) => {
+        const view = ctx.get(editorViewCtx);
+        if (!view) return;
+        view.focus();
+        const { doc } = view.state;
+        // 定位到文档开头（第一行）。空文档只有一个空段落，pos 1 即第一行。
+        const pos = Math.min(1, doc.content.size);
+        view.dispatch(view.state.tr.setSelection(TextSelection.create(doc, pos)).scrollIntoView());
+      });
+    },
+    [get]
+  );
+
   useImperativeHandle(
     ref,
     () => ({
@@ -87,10 +109,10 @@ const InnerEditor = forwardRef(function InnerEditor({ initialValue, onChange, on
   );
 
   return (
-    <>
+    <div className="editor-click-area" onClick={handleContainerClick}>
       <Milkdown />
       {pmView && <TableFloatingToolbar view={pmView} />}
-    </>
+    </div>
   );
 });
 
