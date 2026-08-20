@@ -311,8 +311,8 @@ body {
 .editor-container .milkdown .ProseMirror {
   outline: none;
   caret-color: var(--accent);
-  line-height: 1.75;
-  font-size: 16px;
+  line-height: 1.6;
+  font-size: 15px;
   color: var(--text);
   word-wrap: break-word;
 }
@@ -436,10 +436,10 @@ body {
 .editor-container .milkdown ul,
 .editor-container .milkdown ol {
   padding-left: 1.9em;
-  margin: 0.7em 0;
+  margin: 0.5em 0;
 }
 .editor-container .milkdown li {
-  margin: 0.3em 0;
+  margin: 0.12em 0;
 }
 /* 任务列表 checkbox（gfm 用 data-item-type="task" + data-checked 渲染） */
 .editor-container .milkdown li[data-item-type='task'] {
@@ -1140,9 +1140,9 @@ body {
   color: var(--accent);
   border-color: var(--accent);
 }
-.mermaid-source {
+.mermaid-editor {
   width: 100%;
-  min-height: 120px;
+  min-height: 90px;
   font-family: var(--mono-font);
   font-size: 13px;
   line-height: 1.6;
@@ -1151,11 +1151,11 @@ body {
   border-radius: 6px;
   background: var(--code-bg);
   color: var(--text);
-  resize: vertical;
   outline: none;
-  font-family: var(--mono-font);
+  white-space: pre-wrap;
+  word-break: break-all;
 }
-.mermaid-source:focus {
+.mermaid-editor:focus {
   border-color: var(--accent);
 }
 .mermaid-done-bar {
