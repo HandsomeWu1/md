@@ -1632,19 +1632,39 @@ body {
 }
 
 /* ===== 极简模式 (Lean Mode) ===== */
-.app.lean-mode .titlebar { display: none; }
+/* 极简模式下保留顶部细条：可拖动窗口 + 居中文件名，背景透明（视觉无框）。
+   只隐藏左右图标按钮，文件名居中显示与下拉菜单仍可用。 */
 .app.lean-mode .sidebar { display: none !important; }
 .app.lean-mode .tabbar { display: none; }
 .app.lean-mode .statusbar { display: none; }
 .app.lean-mode .toolbar { display: none; }
+
+.app.lean-mode .titlebar {
+  height: 40px;
+  flex: 0 0 40px;
+  -webkit-app-region: drag;   /* 整条可拖动窗口 */
+}
+.app.lean-mode .titlebar > .tb-btn {
+  display: none;               /* 隐藏侧栏/大纲/主题/极简按钮 */
+}
+/* 红绿灯占位在极简模式下仍保留，避免与系统按钮重叠 */
+.app.lean-mode .titlebar .titlebar-traffic {
+  width: 70px;
+  flex: 0 0 70px;
+}
+/* 文件名绝对居中（不受左右按钮/占位影响） */
+.app.lean-mode .titlebar-center {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  transform: translate(-50%, -50%);
+}
+
 .app.lean-mode .editor-container {
-  padding-top: 20px !important;
+  padding-top: 12px;
 }
 .app.lean-mode .editor-wrap {
   padding: 0 !important;
   margin: 0 !important;
-}
-.app.lean-mode .main-area {
-  /* 编辑器内容占满窗口 */
 }
 
