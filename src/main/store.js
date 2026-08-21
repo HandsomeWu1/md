@@ -8,6 +8,7 @@ const DEFAULTS = {
   lastOpenedFolder: null,
   headingNumbering: false,
   leanMode: false,
+  fontSize: 13,
 };
 
 class SettingsStore {

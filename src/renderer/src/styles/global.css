@@ -28,7 +28,7 @@
   --titlebar-bg: transparent;   /* 透明背景，与下方编辑区无缝衔接 */
   --find-match: #ffe873;
   --shadow: 0 6px 24px rgba(0, 0, 0, 0.12);
-  --editor-font: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+  --editor-font: -apple-system, BlinkMacSystemFont, "SF Pro Text", "PingFang SC", "Hiragino Sans GB", "Helvetica Neue", "Microsoft YaHei", sans-serif;
   --mono-font: "SF Mono", "JetBrains Mono", Menlo, Consolas, "Liberation Mono", monospace;
   --tok-comment: #6a737d;
   --tok-keyword: #d73a49;
@@ -255,7 +255,7 @@ body {
 .sidebar {
   width: 240px;
   flex: 0 0 240px;
-  background: var(--bg-sidebar);
+  background: var(--bg);
   border-right: 1px solid var(--border);
   display: flex;
   flex-direction: column;
@@ -263,7 +263,6 @@ body {
 }
 .sidebar-header {
   display: flex;
-  border-bottom: 1px solid var(--border);
   flex: 0 0 auto;
   padding: 0 6px;
   gap: 2px;
@@ -276,16 +275,17 @@ body {
   padding: 9px 0 7px;
   font-size: 12.5px;
   cursor: pointer;
-  border-bottom: 2px solid transparent;
-  transition: color 0.12s ease;
+  border-radius: 5px;
+  transition: background 0.12s ease, color 0.12s ease;
 }
 .sidebar-header button:hover {
   color: var(--text);
+  background: var(--bg-hover);
 }
 .sidebar-header button.active {
   color: var(--text);
-  border-bottom-color: var(--accent);
   font-weight: 600;
+  background: var(--bg-hover);
 }
 .sidebar-content {
   flex: 1;
@@ -390,6 +390,44 @@ body {
 .toolbar-select:focus {
   border-color: var(--accent);
 }
+/* 字号调整控件：− 数字 + ，极简风格，与工具栏按钮一致 */
+.fontsize-control {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  flex: 0 0 auto;
+  height: 28px;
+  padding: 0 3px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
+.fontsize-control button {
+  width: 22px;
+  height: 22px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  background: transparent;
+  color: var(--text-secondary);
+  border-radius: 5px;
+  cursor: pointer;
+  font-size: 14px;
+  line-height: 1;
+  transition: background 0.1s ease, color 0.1s ease;
+}
+.fontsize-control button:hover {
+  background: var(--bg-hover);
+  color: var(--text);
+}
+.fontsize-value {
+  min-width: 24px;
+  text-align: center;
+  font-size: 12.5px;
+  color: var(--text-secondary);
+  font-variant-numeric: tabular-nums;
+  user-select: none;
+}
 .editor-container .milkdown {
   max-width: 1500px;
   margin: 0 auto;
@@ -403,10 +441,12 @@ body {
 .editor-container .milkdown .ProseMirror {
   outline: none;
   caret-color: var(--accent);
-  line-height: 1.6;
-  font-size: 15px;
+  line-height: 1.72;
+  font-size: var(--editor-font-size, 13px);
   color: var(--text);
   word-wrap: break-word;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
 }
 
 /* ===== 状态栏 ===== */
@@ -459,22 +499,28 @@ body {
   line-height: 1.3;
 }
 .editor-container .milkdown h1 {
-  font-size: 1.75em;
+  font-size: 2em;
+  font-weight: 700;
 }
 .editor-container .milkdown h2 {
-  font-size: 1.4em;
+  font-size: 1.5em;
+  font-weight: 600;
 }
 .editor-container .milkdown h3 {
-  font-size: 1.2em;
+  font-size: 1.25em;
+  font-weight: 600;
 }
 .editor-container .milkdown h4 {
-  font-size: 1.05em;
+  font-size: 1.1em;
+  font-weight: 600;
 }
 .editor-container .milkdown h5 {
   font-size: 1em;
+  font-weight: 600;
 }
 .editor-container .milkdown h6 {
   font-size: 0.9em;
+  font-weight: 600;
   color: var(--text-muted);
 }
 

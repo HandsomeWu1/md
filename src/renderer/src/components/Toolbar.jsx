@@ -46,7 +46,7 @@ function Divider() {
   return <span className="tool-divider" />;
 }
 
-export default function Toolbar({ onAction, activeFormats = {}, headingNumbering = false, onToggleHeadingNumbering }) {
+export default function Toolbar({ onAction, activeFormats = {}, headingNumbering = false, onToggleHeadingNumbering, fontSize = 13, onChangeFontSize }) {
   const fileInputRef = useRef(null);
   const [linkOpen, setLinkOpen] = useState(false);
   const [linkText, setLinkText] = useState('');
@@ -164,6 +164,14 @@ export default function Toolbar({ onAction, activeFormats = {}, headingNumbering
         active={headingNumbering}
         onClick={() => onToggleHeadingNumbering && onToggleHeadingNumbering()}
       />
+
+      <Divider />
+
+      <div className="fontsize-control" title="调整正文字号（⌘+ / ⌘-）">
+        <button type="button" aria-label="缩小字号" onClick={() => onChangeFontSize && onChangeFontSize(-1)}>−</button>
+        <span className="fontsize-value">{fontSize}</span>
+        <button type="button" aria-label="放大字号" onClick={() => onChangeFontSize && onChangeFontSize(1)}>+</button>
+      </div>
 
       {/* 隐藏的本地图片选择 */}
       <input

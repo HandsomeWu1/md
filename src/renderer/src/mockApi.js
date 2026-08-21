@@ -30,7 +30,7 @@ export function installMockApi() {
     },
     exportHtml: async () => ({}),
     exportPdf: async () => ({}),
-    getSettings: async () => ({ theme: 'light', headingNumbering: false, leanMode: false }),
+    getSettings: async () => ({ theme: 'light', headingNumbering: false, leanMode: false, fontSize: 13 }),
     setSettings: async (p) => p,
     getRecentFiles: async () => [],
     addRecentFile: async () => [],

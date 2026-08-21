@@ -22,7 +22,7 @@ const baseName = (p) => (p ? p.split('/').pop() : '未命名');
 export default function App() {
   // 在组件体内取 api，避免模块顶层固化 window.api（preload/mock 注入时机更晚时会拿到 undefined）。
   const api = window.api;
-  const [settings, setSettings] = useState({ theme: 'light', headingNumbering: false, leanMode: false });
+  const [settings, setSettings] = useState({ theme: 'light', headingNumbering: false, leanMode: false, fontSize: 13 });
   const [tabs, setTabs] = useState([]);
   const [activeTabId, setActiveTabId] = useState(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -507,6 +507,17 @@ export default function App() {
     });
   }, []);
 
+  // ---------- 正文字号（12–32px，步进 1px，持久化） ----------
+  const changeFontSize = useCallback((delta) => {
+    setSettings((s) => {
+      const cur = s.fontSize || 13;
+      const next = Math.min(32, Math.max(12, cur + delta));
+      if (next === cur) return s;
+      api.setSettings({ fontSize: next });
+      return { ...s, fontSize: next };
+    });
+  }, []);
+
   // ---------- 极简模式 ----------
   const toggleLean = useCallback(() => {
     setSettings((s) => {
@@ -651,6 +662,23 @@ export default function App() {
     return () => window.removeEventListener('keydown', onKey);
   }, [toggleLean]);
 
+  // 字号快捷键：Cmd/Ctrl + "+" 放大、Cmd/Ctrl + "-" 缩小
+  // macOS 上 "+" 在 "=" 键上（需 Shift），因此同时匹配 '=' 与 '+'（以及 '-/' 的 '_' 兼容）
+  useEffect(() => {
+    const onKey = (e) => {
+      if (!(e.metaKey || e.ctrlKey)) return;
+      if (e.key === '=' || e.key === '+') {
+        e.preventDefault();
+        changeFontSize(1);
+      } else if (e.key === '-' || e.key === '_') {
+        e.preventDefault();
+        changeFontSize(-1);
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [changeFontSize]);
+
   // ---------- 渲染 ----------
   const handleToggleExpand = useCallback(
     (p) => {
@@ -753,8 +781,13 @@ export default function App() {
                 activeFormats={activeFormats}
                 headingNumbering={!!settings.headingNumbering}
                 onToggleHeadingNumbering={toggleHeadingNumbering}
+                fontSize={settings.fontSize || 13}
+                onChangeFontSize={changeFontSize}
               />
-              <div className={'editor-container' + (settings.headingNumbering ? ' heading-numbering' : '')}>
+              <div
+                className={'editor-container' + (settings.headingNumbering ? ' heading-numbering' : '')}
+                style={{ '--editor-font-size': (settings.fontSize || 13) + 'px' }}
+              >
                 {activeTab && (
                   <Editor
                     key={activeTab.id}
