@@ -114,6 +114,22 @@ class SlashMenuView {
     if (nodes.ordered_list) {
       items.push({ label: '有序列表', icon: '1.', run: () => runBlockCommand(this.view, wrapInList(nodes.ordered_list)) });
     }
+    if (nodes.bullet_list && nodes.list_item && nodes.paragraph) {
+      // 任务列表：gfm 无现成命令，手动创建 bullet_list 包 list_item(checked:false)
+      items.push({
+        label: '任务列表',
+        icon: '☐',
+        run: () =>
+          runBlockCommand(this.view, (state, dispatch) => {
+            const { list_item, bullet_list, paragraph } = state.schema.nodes;
+            const para = paragraph.create();
+            const li = list_item.create({ label: '•', listType: 'bullet', spread: true, checked: false }, para);
+            const list = bullet_list.create({ spread: false }, li);
+            dispatch?.(state.tr.replaceSelectionWith(list).scrollIntoView());
+            return true;
+          }),
+      });
+    }
     if (nodes.blockquote) {
       items.push({ label: '引用', icon: '❝', run: () => runBlockCommand(this.view, wrapIn(nodes.blockquote)) });
     }

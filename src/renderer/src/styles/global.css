@@ -202,6 +202,13 @@ body {
   flex-shrink: 0;
   opacity: 0.7;
 }
+/* 无文档时的 app 名（纯文本，不可点击） */
+.titlebar-appname {
+  font-size: 12.5px;
+  color: var(--text-muted);
+  white-space: nowrap;
+  user-select: none;
+}
 .titlebar-menu {
   position: absolute;
   top: calc(100% + 4px);
@@ -670,6 +677,13 @@ body {
   background: var(--find-match);
   border-radius: 2px;
   color: #000;
+}
+/* 当前选中的匹配项：更深、更突出 */
+.editor-container .milkdown .find-match.find-match-current {
+  background: var(--accent);
+  color: #fff;
+  border-radius: 2px;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.12);
 }
 
 /* ===== 欢迎页 ===== */
@@ -1622,11 +1636,11 @@ body {
   white-space: nowrap;
   user-select: none;
 }
-.table-floating-toolbar button {
+.table-floating-toolbar .tft-btn {
   display: inline-flex;
   align-items: center;
-  gap: 3px;
-  padding: 3px 7px;
+  gap: 4px;
+  padding: 4px 7px;
   border: none;
   border-radius: 4px;
   background: transparent;
@@ -1637,19 +1651,57 @@ body {
   transition: background 0.1s ease, color 0.1s ease;
   font-family: var(--editor-font);
 }
-.table-floating-toolbar button:hover {
+.table-floating-toolbar .tft-btn:hover,
+.table-floating-toolbar .tft-btn.active {
   background: var(--bg-hover);
   color: var(--text);
 }
-.table-floating-toolbar button.danger:hover {
+.table-floating-toolbar .tft-btn.danger:hover {
   background: rgba(211, 51, 51, 0.1);
   color: #d33;
+}
+.table-floating-toolbar .tft-label {
+  font-size: 11.5px;
 }
 .tft-sep {
   width: 1px;
   height: 16px;
   background: var(--border);
   margin: 0 3px;
+}
+/* 「添加行/列」按钮的展开子菜单 */
+.tft-group {
+  position: relative;
+}
+.tft-submenu {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  min-width: 72px;
+  padding: 3px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  box-shadow: 0 3px 14px rgba(0, 0, 0, 0.12);
+  display: flex;
+  flex-direction: column;
+  z-index: 1600;
+}
+.tft-submenu button {
+  border: none;
+  background: transparent;
+  text-align: left;
+  padding: 5px 10px;
+  border-radius: 4px;
+  color: var(--text-secondary);
+  font-size: 11.5px;
+  cursor: pointer;
+  font-family: var(--editor-font);
+  white-space: nowrap;
+}
+.tft-submenu button:hover {
+  background: var(--bg-hover);
+  color: var(--text);
 }
 
 /* ===== 极简模式 (Lean Mode) ===== */

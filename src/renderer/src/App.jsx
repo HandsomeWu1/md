@@ -448,9 +448,16 @@ export default function App() {
     const t = tabsRef.current.find((x) => x.id === activeTabIdRef.current);
     const matches = findInMarkdown(t?.markdown || '', query, caseSensitive);
     setSearch((s) => ({ ...s, matches, index: matches.length ? 0 : -1 }));
-    // 触发编辑器内搜索结果高亮
-    editorRef.current?.setSearchHighlight(query, caseSensitive);
   }, []);
+
+  // 统一维护编辑器内高亮：搜索框关闭时清除高亮，否则按当前 query/index 高亮（当前项更突出）。
+  useEffect(() => {
+    if (!search.open) {
+      editorRef.current?.setSearchHighlight('', false, 0);
+      return;
+    }
+    editorRef.current?.setSearchHighlight(search.query, search.caseSensitive, search.index);
+  }, [search.open, search.query, search.caseSensitive, search.index]);
 
   const doReplace = useCallback(
     (all) => {
@@ -693,6 +700,7 @@ export default function App() {
     <div className={'app' + (settings.leanMode ? ' lean-mode' : '')}>
       <TitleBar
         title={activeTab ? activeTab.name : 'Typora Dev'}
+        hasDocument={!!activeTab}
         sidebarOpen={sidebarOpen}
         outlineOpen={sidebarMode === 'outline' && sidebarOpen}
         theme={theme}

@@ -9,6 +9,7 @@ import React, { useState, useRef, useEffect } from 'react';
  */
 export default function TitleBar({
   title,
+  hasDocument, // 是否有打开的文档/标签页；无文档时只显示 app 名，不渲染下拉菜单
   sidebarOpen,
   outlineOpen,
   theme,
@@ -49,28 +50,34 @@ export default function TitleBar({
       {/* macOS 红绿灯占位区（可拖动） */}
       <div className="titlebar-traffic" />
 
-      {/* 中间：居中的文件名 + 下拉（容器可拖动，仅按钮本身 no-drag） */}
+      {/* 中间：有文档时显示「文件名 + 下拉」；无文档时只显示 app 名（纯文本，不可点） */}
       <div className="titlebar-center" ref={menuRef}>
-        <button
-          type="button"
-          className="titlebar-title-btn"
-          onClick={() => setMenuOpen((v) => !v)}
-          title={title}
-        >
-          <span className="title">{title || '未命名'}</span>
-          <svg className="caret" width="10" height="10" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M3 5l3 3 3-3" />
-          </svg>
-        </button>
-        {menuOpen && (
-          <div className="titlebar-menu" onMouseDown={(e) => e.stopPropagation()}>
-            <button type="button" onClick={runAndClose(onSave)}>保存</button>
-            <button type="button" onClick={runAndClose(onSaveAs)}>另存为…</button>
-            <button type="button" onClick={runAndClose(onRename)}>重命名…</button>
-            <button type="button" onClick={runAndClose(onReveal)}>在 Finder 中显示</button>
-            <div className="titlebar-menu-sep" />
-            <button type="button" onClick={runAndClose(onClose)}>关闭</button>
-          </div>
+        {hasDocument ? (
+          <>
+            <button
+              type="button"
+              className="titlebar-title-btn"
+              onClick={() => setMenuOpen((v) => !v)}
+              title={title}
+            >
+              <span className="title">{title || '未命名'}</span>
+              <svg className="caret" width="10" height="10" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M3 5l3 3 3-3" />
+              </svg>
+            </button>
+            {menuOpen && (
+              <div className="titlebar-menu" onMouseDown={(e) => e.stopPropagation()}>
+                <button type="button" onClick={runAndClose(onSave)}>保存</button>
+                <button type="button" onClick={runAndClose(onSaveAs)}>另存为…</button>
+                <button type="button" onClick={runAndClose(onRename)}>重命名…</button>
+                <button type="button" onClick={runAndClose(onReveal)}>在 Finder 中显示</button>
+                <div className="titlebar-menu-sep" />
+                <button type="button" onClick={runAndClose(onClose)}>关闭</button>
+              </div>
+            )}
+          </>
+        ) : (
+          <span className="titlebar-appname">{title}</span>
         )}
       </div>
 

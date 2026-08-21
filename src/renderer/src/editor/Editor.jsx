@@ -121,9 +121,9 @@ const InnerEditor = forwardRef(function InnerEditor({ initialValue, onChange, on
           const { tr, selection } = view.state;
           view.dispatch(tr.setSelection(selection));
         }),
-      // 更新搜索结果高亮：设置全局查询词，dispatch 带 meta 的事务触发 decoration 重算
-      setSearchHighlight: (query, caseSensitive) => {
-        setSearchQuery(query, caseSensitive);
+      // 更新搜索结果高亮：设置全局查询词 + 当前项，dispatch 带 meta 的事务触发 decoration 重算
+      setSearchHighlight: (query, caseSensitive, index) => {
+        setSearchQuery(query, caseSensitive, index);
         runWithView(getRef.current(), (view) => {
           view.dispatch(view.state.tr.setMeta(searchHighlightKey, { type: 'search-highlight-update' }));
         });
