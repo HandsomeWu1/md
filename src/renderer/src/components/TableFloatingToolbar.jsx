@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { isInTable, selectedRect, findTable } from '@milkdown/prose/tables';
 import {
   addRowBefore,
@@ -106,6 +106,20 @@ const Icons = {
 export default function TableFloatingToolbar({ view }) {
   const [anchor, setAnchor] = useState(null); // { left, top, inHeader, tablePos }
   const [panelOpen, setPanelOpen] = useState(false);
+  const rootRef = useRef(null);
+
+  // 点击面板/把手外部时自动收起（把手 onMouseDown stopPropagation 已阻止内部点击冒泡，
+  // 因此这里只会在真正点击到外部时触发）
+  useEffect(() => {
+    if (!panelOpen) return;
+    const onDown = (e) => {
+      if (rootRef.current && !rootRef.current.contains(e.target)) {
+        setPanelOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', onDown);
+    return () => document.removeEventListener('mousedown', onDown);
+  }, [panelOpen]);
 
   const updatePosition = useCallback(() => {
     if (!view) { setAnchor(null); setPanelOpen(false); return; }
@@ -171,6 +185,7 @@ export default function TableFloatingToolbar({ view }) {
 
   return (
     <div
+      ref={rootRef}
       className="table-grip"
       style={{ position: 'fixed', left: anchor.left, top: anchor.top, zIndex: 1500 }}
       onClick={(e) => e.stopPropagation()}

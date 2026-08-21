@@ -74,7 +74,15 @@ export default function App() {
   // 启动时加载持久化设置（主题、标题编号等）
   useEffect(() => {
     api.getSettings().then((s) => {
-      if (s && typeof s === 'object') setSettings((prev) => ({ ...prev, ...s }));
+      if (s && typeof s === 'object') {
+        setSettings((prev) => {
+          const merged = { ...prev, ...s };
+          // 防御：fontSize 必须是 12–32 的有效数字，否则回退默认 13
+          const fs = Number(merged.fontSize);
+          merged.fontSize = Number.isFinite(fs) && fs >= 12 && fs <= 32 ? fs : 13;
+          return merged;
+        });
+      }
     });
   }, []);
 
@@ -663,20 +671,23 @@ export default function App() {
   }, [toggleLean]);
 
   // 字号快捷键：Cmd/Ctrl + "+" 放大、Cmd/Ctrl + "-" 缩小
-  // macOS 上 "+" 在 "=" 键上（需 Shift），因此同时匹配 '=' 与 '+'（以及 '-/' 的 '_' 兼容）
+  // 用 e.code 匹配物理键（Equal = +/=、Minus = -/_），不受 Shift 或键盘布局影响；
+  // capture 阶段 + stopPropagation，确保在编辑器/ProseMirror 处理前拦截，避免按键被吞。
   useEffect(() => {
     const onKey = (e) => {
       if (!(e.metaKey || e.ctrlKey)) return;
-      if (e.key === '=' || e.key === '+') {
+      if (e.code === 'Equal') {
         e.preventDefault();
+        e.stopPropagation();
         changeFontSize(1);
-      } else if (e.key === '-' || e.key === '_') {
+      } else if (e.code === 'Minus') {
         e.preventDefault();
+        e.stopPropagation();
         changeFontSize(-1);
       }
     };
-    window.addEventListener('keydown', onKey);
-    return () => window.removeEventListener('keydown', onKey);
+    window.addEventListener('keydown', onKey, true);
+    return () => window.removeEventListener('keydown', onKey, true);
   }, [changeFontSize]);
 
   // ---------- 渲染 ----------
