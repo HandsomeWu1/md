@@ -1,6 +1,6 @@
-# Typora Dev
+# Margin
 
-Typora 风格的所见即所得（WYSIWYG）Markdown 桌面编辑器，面向 **macOS Apple Silicon（M 系列芯片）**。本项目为**原创实现**，使用开源 Markdown 编辑框架 Milkdown（其自身灵感即来自 Typora），不包含任何 Typora 的私有代码、资源或商标。
+极简的所见即所得（WYSIWYG）Markdown 桌面编辑器，面向 **macOS Apple Silicon（M 系列芯片）**。本项目为**原创实现**，使用开源 Markdown 编辑框架 Milkdown，不包含任何第三方编辑器的私有代码、资源或商标。
 
 > 应用图标使用 `service/md-preview/src/md_preview/static/logo.png`。
 
@@ -21,7 +21,7 @@ Typora 风格的所见即所得（WYSIWYG）Markdown 桌面编辑器，面向 **
 
 ### 富媒体与高级编辑
 - **可视化工具栏**：编辑区顶部的按钮栏，新手点击即可插入常用元素——段落格式（正文/标题 1-6）、加粗、斜体、删除线、行内代码、无序/有序/任务列表、引用、代码块、表格、分割线、链接、图片（无需记忆 Markdown 语法）。
-  - **激活态高亮**：光标所在位置的格式会在对应按钮上亮起（如加粗文字里点光标，B 按钮高亮；段落下拉实时显示当前标题级别），对齐 Typora/Word 体验。
+  - **激活态高亮**：光标所在位置的格式会在对应按钮上亮起（如加粗文字里点光标，B 按钮高亮；段落下拉实时显示当前标题级别），对齐主流编辑器体验。
   - **链接/图片弹窗**：点击「链接」「图片」按钮弹出精致输入弹窗（非系统 prompt），支持 Enter 确定、Esc 取消。
   - **图片本地文件选择**：图片按钮支持「本地文件」直接选择图片插入（自动保存到本地并引用），也可输入 URL。
 - **代码高亮**：` ```javascript ` 等围栏代码块，Prism 全语言语法高亮，明暗主题各一套配色。
@@ -97,7 +97,7 @@ npm install
 npm run dist:mac-arm64
 ```
 
-产物输出到 `release/`：`Typora Dev-0.1.0-arm64.dmg` 与 `-arm64-mac.zip`。
+产物输出到 `release/`：`Margin-0.1.0-arm64.dmg` 与 `-arm64-mac.zip`。
 
 也可以直接用脚本：
 
@@ -133,7 +133,7 @@ npm run dev
 
 ## 已知限制与后续规划
 
-- 未签名构建首次打开可能触发 Gatekeeper 提示，本机构建一般可正常运行；如遇「已损坏」，执行 `xattr -cr /Applications/Typora\ Dev.app`。
+- 未签名构建首次打开可能触发 Gatekeeper 提示，本机构建一般可正常运行；如遇「已损坏」，执行 `xattr -cr /Applications/Margin.app`。
 - 查找匹配当前在文档源码层计数与替换，暂未在编辑器内做高亮滚动。
 - 标签切换会重建编辑器实例，跨标签的撤销历史不保留。
 - Mermaid 图表以代码块下方的 SVG 预览呈现，代码块本身可继续编辑（非专用图形节点）。

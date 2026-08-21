@@ -153,7 +153,7 @@ function registerIpc() {
 
   // ---------- 窗口 ----------
   ipcMain.handle('window:set-title', (e, title) => {
-    getWin(e)?.setTitle(title || 'Typora Dev');
+    getWin(e)?.setTitle(title || 'Margin');
   });
   ipcMain.handle('window:set-edited', (e, edited) => {
     getWin(e)?.setDocumentEdited(!!edited);

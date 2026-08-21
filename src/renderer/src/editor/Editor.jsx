@@ -51,7 +51,7 @@ const InnerEditor = forwardRef(function InnerEditor({ initialValue, onChange, on
   const getRef = useRef(get);
   getRef.current = get;
 
-  // 编辑器异步创建完成后自动聚焦，确保新建/切换标签后光标可见（Typora 行为）。
+  // 编辑器异步创建完成后自动聚焦，确保新建/切换标签后光标可见。
   // 只依赖 loading：编辑器仅在创建完成（loading 由 true→false）时聚焦一次。
   useEffect(() => {
     if (loading) return;

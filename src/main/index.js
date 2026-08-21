@@ -49,7 +49,7 @@ function createWindow() {
     height: 840,
     minWidth: 760,
     minHeight: 480,
-    title: 'Typora Dev',
+    title: 'Margin',
     show: true,
     // 背景色 = 渲染层 --bg，确保 TitleBar 透明时整窗无缝衔接。
     // 跟随主题切换：构造时取一次，避免主题切换瞬间白闪。

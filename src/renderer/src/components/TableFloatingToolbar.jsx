@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { isInTable, selectedRect } from '@milkdown/prose/tables';
+import { isInTable, selectedRect, findTable } from '@milkdown/prose/tables';
 import {
   addRowBefore,
   addRowAfter,
@@ -28,30 +28,52 @@ const Icon = ({ children }) => (
   </svg>
 );
 
-// 行/列/对齐/垃圾桶图标
 const Icons = {
-  addRow: (
+  grip: (
     <Icon>
-      <path d="M1.5 5.5h13M1.5 12h13" />
-      <path d="M8 2v3M6.5 3.5h3" />
+      <circle cx="5" cy="3.5" r="1" fill="currentColor" stroke="none" />
+      <circle cx="8" cy="3.5" r="1" fill="currentColor" stroke="none" />
+      <circle cx="11" cy="3.5" r="1" fill="currentColor" stroke="none" />
+      <circle cx="5" cy="8" r="1" fill="currentColor" stroke="none" />
+      <circle cx="8" cy="8" r="1" fill="currentColor" stroke="none" />
+      <circle cx="11" cy="8" r="1" fill="currentColor" stroke="none" />
+      <circle cx="5" cy="12.5" r="1" fill="currentColor" stroke="none" />
+      <circle cx="8" cy="12.5" r="1" fill="currentColor" stroke="none" />
+      <circle cx="11" cy="12.5" r="1" fill="currentColor" stroke="none" />
     </Icon>
   ),
-  addCol: (
+  addRowAbove: (
     <Icon>
-      <path d="M5.5 1.5v13M12 1.5v13" />
-      <path d="M2 8h3M3.5 6.5v3" />
+      <path d="M2 3.5h12M8 1.5v2M6.8 2.5h2.4" />
+      <path d="M2 8h12M2 12.5h12" />
+    </Icon>
+  ),
+  addRowBelow: (
+    <Icon>
+      <path d="M2 8h12M2 12.5h12" />
+      <path d="M8 14v2M6.8 15h2.4" />
+    </Icon>
+  ),
+  addColLeft: (
+    <Icon>
+      <path d="M5.5 2v12M11 2v12" />
+      <path d="M2 8h3M3.5 6.8v2.4" />
+    </Icon>
+  ),
+  addColRight: (
+    <Icon>
+      <path d="M5.5 2v12M11 2v12" />
+      <path d="M14 8h-3M12.5 6.8v2.4" />
     </Icon>
   ),
   delRow: (
     <Icon>
-      <path d="M1.5 5.5h13M1.5 12h13" />
-      <path d="M4 2.5h8" />
+      <path d="M2 5h12M2 11h12" />
     </Icon>
   ),
   delCol: (
     <Icon>
-      <path d="M5.5 1.5v13M12 1.5v13" />
-      <path d="M2.5 4v8" />
+      <path d="M5.5 2v12M11 2v12" />
     </Icon>
   ),
   delTable: (
@@ -61,154 +83,151 @@ const Icons = {
   ),
   alignLeft: (
     <Icon>
-      <path d="M1.5 2.5v11M1.5 5h9M1.5 8h13M1.5 11h9" />
+      <path d="M2 2v12M2 6h12M2 10h8" />
     </Icon>
   ),
   alignCenter: (
     <Icon>
-      <path d="M1.5 5h13M3 8h10M1.5 11h13" />
+      <path d="M2 6h12M4 10h8" />
     </Icon>
   ),
   alignRight: (
     <Icon>
-      <path d="M14.5 2.5v11M14.5 5h-9M14.5 8H1.5M14.5 11h-9" />
+      <path d="M14 2v12M14 6H2M14 10H6" />
     </Icon>
   ),
 };
 
+/**
+ * 表格浮动操作入口：光标进入表格后，在表格左上角显示一个极小的「⋮」把手（不遮挡数据）。
+ * 点击把手才展开完整操作面板（面板也定位在表格上方，不覆盖单元格内容）。
+ * 光标离开表格时把手与面板一起消失。
+ */
 export default function TableFloatingToolbar({ view }) {
-  const [visible, setVisible] = useState(false);
-  const [pos, setPos] = useState({ top: 0, left: 0 });
-  const [inHeader, setInHeader] = useState(false);
-  const [openMenu, setOpenMenu] = useState(null); // null | 'row' | 'col'
+  const [anchor, setAnchor] = useState(null); // { left, top, inHeader, tablePos }
+  const [panelOpen, setPanelOpen] = useState(false);
 
   const updatePosition = useCallback(() => {
-    if (!view) { setVisible(false); return; }
+    if (!view) { setAnchor(null); setPanelOpen(false); return; }
     try {
       const state = view.state;
-      if (!isInTable(state)) { setVisible(false); return; }
-      const from = state.selection.from;
-      const coords = view.coordsAtPos(from);
-      setPos({ top: coords.top - 42, left: coords.left });
-      // 对齐只在表头行生效（keepTableAlignPlugin 会把表头对齐同步到整列），
-      // 所以对齐按钮仅在光标位于表头行（第一行）时显示。
+      if (!isInTable(state)) { setAnchor(null); setPanelOpen(false); return; }
+      const table = findTable(state.selection.$head);
+      if (!table) { setAnchor(null); setPanelOpen(false); return; }
+      const dom = view.nodeDOM(table.pos);
+      if (!dom || !(dom instanceof HTMLElement)) { setAnchor(null); setPanelOpen(false); return; }
+      const rect = dom.getBoundingClientRect();
+      let inHeader = false;
       try {
-        setInHeader(selectedRect(state).top === 0);
+        inHeader = selectedRect(state).top === 0;
       } catch {
-        setInHeader(false);
+        inHeader = false;
       }
-      setVisible(true);
+      setAnchor({ left: rect.left, top: rect.top - 30, inHeader, tablePos: table.pos });
     } catch {
-      setVisible(false);
+      setAnchor(null);
+      setPanelOpen(false);
     }
   }, [view]);
 
-  // 订阅全局编辑器事务事件（由 editor/tableSignal.js 插件派发）
   useEffect(() => {
     if (!view) return;
     const handler = () => requestAnimationFrame(updatePosition);
     window.addEventListener(TX_EVENT, handler);
     updatePosition();
-    return () => {
-      window.removeEventListener(TX_EVENT, handler);
-    };
+    return () => window.removeEventListener(TX_EVENT, handler);
   }, [view, updatePosition]);
 
-  // 阻止 mousedown 默认行为：避免点击按钮时编辑器失焦（失焦会破坏选区、
-  // 并在重新 focus 时把滚动位置跳回顶部）。点击按钮全程保持编辑器焦点。
   const keepFocus = (e) => e.preventDefault();
 
-  const dispatch = (tr) => {
-    if (!view) return;
-    view.dispatch(tr);
-  };
+  const dispatch = (tr) => { if (view) view.dispatch(tr); };
 
-  // prosemirror-tables 命令都是 (state, dispatch) => boolean 形式，直接传参执行。
   const run = (cmd) => {
     if (!view) return;
     cmd(view.state, dispatch);
-    setOpenMenu(null);
+    setPanelOpen(false);
+    // 结构变化后重新定位把手
+    setTimeout(() => updatePosition(), 0);
   };
 
   const handleDeleteRow = () => {
     if (!view) return;
-    // milkdown 表格 schema 要求「1 个表头行 + 至少 1 个正文行」。
-    // 删除表头行/删到只剩表头行会破坏 schema，导致后续 fixTables 反复插入行（bug）。
     let rect;
     try {
       rect = selectedRect(view.state);
     } catch {
       return;
     }
-    if (rect.top === 0) return; // 表头行不可删
-    if (rect.map.height <= 2) return; // 只剩 1 表头 + 1 正文
-    deleteRow(view.state, dispatch);
+    // milkdown schema 要求「1 表头行 + 至少 1 正文行」，表头行不可删、删到只剩表头不可
+    if (rect.top === 0) return;
+    if (rect.map.height <= 2) return;
+    run(deleteRow);
   };
-  const handleDeleteCol = () => { if (view) deleteColumn(view.state, dispatch); };
-  const handleDeleteTable = () => { if (view) deleteTable(view.state, dispatch); };
-  const handleAlign = (align) => { if (view) setCellAttr('alignment', align)(view.state, dispatch); };
+  const handleDeleteCol = () => { if (view) run(deleteColumn); };
+  const handleDeleteTable = () => { if (view) run(deleteTable); };
+  const handleAlign = (align) => { if (view) run((s, d) => setCellAttr('alignment', align)(s, d)); };
 
-  if (!visible || !view) return null;
+  if (!anchor) return null;
 
   return (
     <div
-      className="table-floating-toolbar"
-      style={{ position: 'fixed', top: pos.top, left: pos.left - 60, zIndex: 1500 }}
+      className="table-grip"
+      style={{ position: 'fixed', left: anchor.left, top: anchor.top, zIndex: 1500 }}
       onClick={(e) => e.stopPropagation()}
       onMouseDown={(e) => e.stopPropagation()}
     >
-      {/* 添加行（合并，展开上/下） */}
-      <div className="tft-group">
-        <button
-          type="button"
-          title="添加行"
-          className={'tft-btn' + (openMenu === 'row' ? ' active' : '')}
-          onMouseDown={keepFocus}
-          onClick={() => setOpenMenu((m) => (m === 'row' ? null : 'row'))}
-        >
-          {Icons.addRow}<span className="tft-label">添加行</span>
-        </button>
-        {openMenu === 'row' && (
-          <div className="tft-submenu">
-            <button type="button" onMouseDown={keepFocus} onClick={() => run(addRowBefore)}>上方</button>
-            <button type="button" onMouseDown={keepFocus} onClick={() => run(addRowAfter)}>下方</button>
-          </div>
-        )}
-      </div>
+      <button
+        type="button"
+        className={'table-grip-btn' + (panelOpen ? ' active' : '')}
+        title="表格操作"
+        onMouseDown={keepFocus}
+        onClick={() => setPanelOpen((v) => !v)}
+      >
+        {Icons.grip}
+      </button>
 
-      {/* 添加列（合并，展开左/右） */}
-      <div className="tft-group">
-        <button
-          type="button"
-          title="添加列"
-          className={'tft-btn' + (openMenu === 'col' ? ' active' : '')}
-          onMouseDown={keepFocus}
-          onClick={() => setOpenMenu((m) => (m === 'col' ? null : 'col'))}
-        >
-          {Icons.addCol}<span className="tft-label">添加列</span>
-        </button>
-        {openMenu === 'col' && (
-          <div className="tft-submenu">
-            <button type="button" onMouseDown={keepFocus} onClick={() => run(addColumnBefore)}>左侧</button>
-            <button type="button" onMouseDown={keepFocus} onClick={() => run(addColumnAfter)}>右侧</button>
-          </div>
-        )}
-      </div>
+      {panelOpen && (
+        <div className="table-grip-panel">
+          <button type="button" title="上方插入行" disabled={anchor.inHeader} onMouseDown={keepFocus} onClick={() => run(addRowBefore)}>
+            {Icons.addRowAbove}<span>上方加行</span>
+          </button>
+          <button type="button" title="下方插入行" onMouseDown={keepFocus} onClick={() => run(addRowAfter)}>
+            {Icons.addRowBelow}<span>下方加行</span>
+          </button>
+          <button type="button" title="左侧插入列" onMouseDown={keepFocus} onClick={() => run(addColumnBefore)}>
+            {Icons.addColLeft}<span>左侧加列</span>
+          </button>
+          <button type="button" title="右侧插入列" onMouseDown={keepFocus} onClick={() => run(addColumnAfter)}>
+            {Icons.addColRight}<span>右侧加列</span>
+          </button>
 
-      <span className="tft-sep" />
+          <div className="table-grip-sep" />
 
-      <button type="button" title="删除当前行" className="tft-btn" onMouseDown={keepFocus} onClick={handleDeleteRow}>{Icons.delRow}</button>
-      <button type="button" title="删除当前列" className="tft-btn" onMouseDown={keepFocus} onClick={handleDeleteCol}>{Icons.delCol}</button>
-      <button type="button" title="删除整个表格" className="tft-btn danger" onMouseDown={keepFocus} onClick={handleDeleteTable}>{Icons.delTable}</button>
+          <button type="button" title="删除当前行" onMouseDown={keepFocus} onClick={handleDeleteRow}>
+            {Icons.delRow}<span>删除行</span>
+          </button>
+          <button type="button" title="删除当前列" onMouseDown={keepFocus} onClick={handleDeleteCol}>
+            {Icons.delCol}<span>删除列</span>
+          </button>
+          <button type="button" title="删除整个表格" className="danger" onMouseDown={keepFocus} onClick={handleDeleteTable}>
+            {Icons.delTable}<span>删除表格</span>
+          </button>
 
-      {/* 对齐仅在表头行显示 */}
-      {inHeader && (
-        <>
-          <span className="tft-sep" />
-          <button type="button" title="左对齐" className="tft-btn" onMouseDown={keepFocus} onClick={() => handleAlign('left')}>{Icons.alignLeft}</button>
-          <button type="button" title="居中" className="tft-btn" onMouseDown={keepFocus} onClick={() => handleAlign('center')}>{Icons.alignCenter}</button>
-          <button type="button" title="右对齐" className="tft-btn" onMouseDown={keepFocus} onClick={() => handleAlign('right')}>{Icons.alignRight}</button>
-        </>
+          {anchor.inHeader && (
+            <>
+              <div className="table-grip-sep" />
+              <button type="button" title="左对齐" onMouseDown={keepFocus} onClick={() => handleAlign('left')}>
+                {Icons.alignLeft}<span>左对齐</span>
+              </button>
+              <button type="button" title="居中" onMouseDown={keepFocus} onClick={() => handleAlign('center')}>
+                {Icons.alignCenter}<span>居中</span>
+              </button>
+              <button type="button" title="右对齐" onMouseDown={keepFocus} onClick={() => handleAlign('right')}>
+                {Icons.alignRight}<span>右对齐</span>
+              </button>
+            </>
+          )}
+        </div>
       )}
     </div>
   );

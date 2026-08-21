@@ -1,6 +1,6 @@
-appId: com.typoradev.app
-productName: Typora Dev
-copyright: Copyright © 2026 Typora Dev
+appId: com.margin.app
+productName: Margin
+copyright: Copyright © 2026 Margin
 
 directories:
   output: release
@@ -28,7 +28,7 @@ mac:
         - arm64
 
 dmg:
-  title: Typora Dev
+  title: Margin
   icon: build/icon.png
   contents:
     - x: 130

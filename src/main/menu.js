@@ -15,19 +15,19 @@ function buildMenu(getWindow) {
     ...(isMac
       ? [
           {
-            label: 'Typora Dev',
+            label: 'Margin',
             submenu: [
-              { role: 'about', label: '关于 Typora Dev' },
+              { role: 'about', label: '关于 Margin' },
               { type: 'separator' },
               { label: '偏好设置…', accelerator: 'Cmd+,', click: () => send('app:preferences') },
               { type: 'separator' },
               { role: 'services', label: '服务' },
               { type: 'separator' },
-              { role: 'hide', label: '隐藏 Typora Dev' },
+              { role: 'hide', label: '隐藏 Margin' },
               { role: 'hideOthers', label: '隐藏其他' },
               { role: 'unhide', label: '全部显示' },
               { type: 'separator' },
-              { role: 'quit', label: '退出 Typora Dev' },
+              { role: 'quit', label: '退出 Margin' },
             ],
           },
         ]
@@ -92,7 +92,7 @@ function buildMenu(getWindow) {
     {
       role: 'help',
       label: '帮助',
-      submenu: [{ label: '关于 Typora Dev', click: () => send('app:about') }],
+      submenu: [{ label: '关于 Margin', click: () => send('app:about') }],
     },
   ];
 

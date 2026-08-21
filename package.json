@@ -1,8 +1,8 @@
 {
-  "name": "typora-dev",
+  "name": "margin",
   "version": "0.1.0",
-  "description": "A Typora-style WYSIWYG Markdown desktop editor for macOS (Apple Silicon).",
-  "author": "Typora Dev",
+  "description": "A minimalist WYSIWYG Markdown desktop editor for macOS (Apple Silicon).",
+  "author": "Margin",
   "license": "MIT",
   "private": true,
   "main": "src/main/index.js",

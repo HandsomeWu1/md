@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 
 /**
- * Typora 风格的极简 TitleBar：
+ * 极简 TitleBar：
  * 1. 文件名居中（不放在左侧）
  * 2. 文件名旁边有向下小箭头，点击下拉显示「保存 / 另存为 / 重命名 / 在 Finder 中显示 / 关闭」
  * 3. 整个 TitleBar 背景色 = 编辑器背景色，**无 border-bottom**，让用户视觉上感觉「没有 TitleBar」

@@ -424,7 +424,7 @@ export default function App() {
 
   // ---------- 窗口标题 / 未保存标记 ----------
   useEffect(() => {
-    const title = activeTab ? `${activeTab.name}${activeTab.dirty ? ' ●' : ''} - Typora Dev` : 'Typora Dev';
+    const title = activeTab ? `${activeTab.name}${activeTab.dirty ? ' ●' : ''} - Margin` : 'Margin';
     api.setWindowTitle(title);
     api.setDocumentEdited(!!(activeTab && activeTab.dirty));
   }, [activeTab?.name, activeTab?.dirty]);
@@ -585,7 +585,7 @@ export default function App() {
         case 'view:toggle-focus': toggleFocusMode(); break;
         case 'view:toggle-typewriter': toggleTypewriterMode(); break;
         case 'app:about':
-          window.alert('Typora Dev v0.1.0\nTypora 风格的所见即所得 Markdown 编辑器（macOS Apple Silicon）');
+          window.alert('Margin v0.1.0\n极简的所见即所得 Markdown 编辑器（macOS Apple Silicon）');
           break;
         case 'app:preferences': toggleTheme(); break;
         default: break;
@@ -699,7 +699,7 @@ export default function App() {
   return (
     <div className={'app' + (settings.leanMode ? ' lean-mode' : '')}>
       <TitleBar
-        title={activeTab ? activeTab.name : 'Typora Dev'}
+        title={activeTab ? activeTab.name : 'Margin'}
         hasDocument={!!activeTab}
         sidebarOpen={sidebarOpen}
         outlineOpen={sidebarMode === 'outline' && sidebarOpen}

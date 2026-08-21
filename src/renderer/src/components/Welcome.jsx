@@ -1,26 +1,4 @@
-import React, { useState } from 'react';
-
-function WelcomeLogo() {
-  const [broken, setBroken] = useState(false);
-  if (broken) {
-    return (
-      <svg className="welcome-logo" viewBox="0 0 72 72" aria-label="logo">
-        <rect x="6" y="6" width="60" height="60" rx="14" fill="var(--accent)" />
-        <text x="36" y="46" textAnchor="middle" fontSize="30" fontWeight="700" fill="#fff">
-          T
-        </text>
-      </svg>
-    );
-  }
-  return (
-    <img
-      className="welcome-logo"
-      src="logo.png"
-      alt="Typora Dev"
-      onError={() => setBroken(true)}
-    />
-  );
-}
+import React from 'react';
 
 export default function Welcome({
   recentFiles,
@@ -33,11 +11,9 @@ export default function Welcome({
   return (
     <div className="welcome">
       <div className="welcome-inner">
-        <WelcomeLogo />
-        <h1>Typora Dev</h1>
-        <p>所见即所得的 Markdown 编辑器</p>
+        <h1>Margin</h1>
         <div className="welcome-actions">
-          <button type="button" className="primary" onClick={onNewFile}>
+          <button type="button" onClick={onNewFile}>
             新建
           </button>
           <button type="button" onClick={onOpenFile}>
