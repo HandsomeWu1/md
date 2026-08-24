@@ -27,6 +27,7 @@
   --scrollbar: rgba(0, 0, 0, 0.2);
   --titlebar-bg: transparent;   /* 透明背景，与下方编辑区无缝衔接 */
   --find-match: #ffe873;
+  --find-match-current: #ffb454; /* 当前匹配项（替换掉刺眼的蓝色） */
   --shadow: 0 6px 24px rgba(0, 0, 0, 0.12);
   --editor-font: -apple-system, BlinkMacSystemFont, "SF Pro Text", "PingFang SC", "Hiragino Sans GB", "Helvetica Neue", "Microsoft YaHei", sans-serif;
   --mono-font: "SF Mono", "JetBrains Mono", Menlo, Consolas, "Liberation Mono", monospace;
@@ -71,6 +72,7 @@
   --scrollbar: rgba(255, 255, 255, 0.22);
   --titlebar-bg: transparent;   /* dark 模式也透明 */
   --find-match: #6a5d00;
+  --find-match-current: #f08c00; /* 深色主题当前匹配项 */
   --shadow: 0 6px 24px rgba(0, 0, 0, 0.5);
   --tok-comment: #6a9955;
   --tok-keyword: #569cd6;
@@ -798,20 +800,23 @@ body {
   border-radius: 2px;
   color: #000;
 }
-/* 当前选中的匹配项：更深、更突出 */
+/* 当前选中的匹配项：用独立的暖橙色（替换掉刺眼的蓝色 --accent） */
 .editor-container .milkdown .find-match.find-match-current {
-  background: var(--accent);
-  color: #fff;
+  background: var(--find-match-current);
+  color: #1a1a1a;
   border-radius: 2px;
-  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.12);
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.15);
 }
 
 /* ===== 欢迎页 ===== */
 .welcome {
   flex: 1;
   display: flex;
-  align-items: center;
-  justify-content: center;
+  flex-direction: column;      /* 垂直方向可控定位 */
+  align-items: center;         /* 水平居中 */
+  justify-content: flex-start; /* 从顶部开始，避免窗口过小时顶部溢出被裁切、logo 消失 */
+  /* 固定在「中间偏上」：上间距取视口高度的 14%，窗口很小时回退到 24px（保证始终可见） */
+  padding: clamp(24px, 14vh, 140px) 16px 24px;
   background: var(--bg);
   overflow-y: auto;
 }
@@ -1348,6 +1353,11 @@ body {
 }
 .search-btn:hover {
   background: var(--bg-hover);
+}
+.search-btn-active {
+  border-color: var(--accent);
+  color: #fff;
+  background: var(--accent);
 }
 .search-close {
   border-color: var(--accent);

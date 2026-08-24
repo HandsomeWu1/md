@@ -468,6 +468,11 @@ export default function App() {
     editorRef.current?.setSearchHighlight(search.query, search.caseSensitive, search.index);
   }, [search.open, search.query, search.caseSensitive, search.index]);
 
+  // 在查找对话框内切换「替换」模式
+  const toggleSearchMode = useCallback(() => {
+    setSearch((s) => ({ ...s, mode: s.mode === 'replace' ? 'find' : 'replace' }));
+  }, []);
+
   const doReplace = useCallback(
     (all) => {
       const t = tabsRef.current.find((x) => x.id === activeTabIdRef.current);
@@ -880,6 +885,7 @@ export default function App() {
         }
         onReplace={() => doReplace(false)}
         onReplaceAll={() => doReplace(true)}
+        onToggleMode={toggleSearchMode}
       />
 
       {/* 文件操作输入弹窗（新建文件/文件夹、重命名） */}

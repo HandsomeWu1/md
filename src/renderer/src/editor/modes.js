@@ -27,7 +27,8 @@ function buildFocusDecorations(doc, selection) {
   const decos = [];
   doc.descendants((node, pos) => {
     if (node.isBlock && pos !== currentBlockPos && node.type.name !== 'code_block') {
-      decos.push(Decoration.node(pos, node.nodeSize, { class: 'focus-dimmed' }));
+      // Decoration.node(from, to, ...) 的 to 必须是节点结束位置，而非节点大小
+      decos.push(Decoration.node(pos, pos + node.nodeSize, { class: 'focus-dimmed' }));
     }
   });
   return DecorationSet.create(doc, decos);
@@ -47,8 +48,11 @@ export const focusMode = $prose(
         },
       },
       props: {
+        // 注意：ProseMirror 调用 props.decorations 时不会把 this 绑定到 plugin，
+        // 写成 `this.getState(state)` 会因 this 为 undefined 而抛错、导致整个 Focus 模式高亮失效。
+        // 必须改用 PluginKey 读取状态（与 searchHighlight 插件一致）。
         decorations(state) {
-          return this.getState(state);
+          return focusKey.getState(state);
         },
       },
     })

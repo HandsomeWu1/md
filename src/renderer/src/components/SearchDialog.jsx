@@ -16,6 +16,7 @@ export default function SearchDialog({
   onPrev,
   onReplace,
   onReplaceAll,
+  onToggleMode,
 }) {
   const queryRef = useRef(null);
 
@@ -39,7 +40,10 @@ export default function SearchDialog({
   };
 
   const handleReplaceKeyDown = (e) => {
-    if (e.key === 'Escape') {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      onReplace();
+    } else if (e.key === 'Escape') {
       e.preventDefault();
       onClose();
     }
@@ -73,6 +77,14 @@ export default function SearchDialog({
         </div>
 
         <div className="search-row search-options">
+          <button
+            type="button"
+            className={`search-btn ${mode === 'replace' ? 'search-btn-active' : ''}`}
+            onClick={onToggleMode}
+            title="切换替换模式"
+          >
+            替换
+          </button>
           <label className="search-case">
             <input
               type="checkbox"
