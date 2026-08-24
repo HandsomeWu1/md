@@ -826,9 +826,15 @@ body {
   box-shadow: 0 4px 14px rgba(0, 0, 0, 0.1);
 }
 .welcome h1 {
-  font-size: 24px;
-  font-weight: 600;
-  margin: 0 0 6px;
+  /* 艺术体衬线（编辑体高对比风格）：macOS 可取 Didot / Bodoni / Baskerville，
+     Linux 预览环境无这些字体会回退到 Georgia / serif。受 CSP 限制不能外链字体，
+     只能用系统字体。 */
+  font-family: "Didot", "Bodoni 72", "Hoefler Text", "Baskerville", "Big Caslon", Georgia, "Times New Roman", serif;
+  font-size: 58px;
+  font-weight: 400;
+  letter-spacing: 0.06em;
+  line-height: 1.1;
+  margin: 0 0 12px;
   color: var(--heading);
 }
 .welcome p {
