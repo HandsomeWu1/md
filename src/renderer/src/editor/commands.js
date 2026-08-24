@@ -64,4 +64,25 @@ export const actions = {
       }
     }),
   image: (editor, src) => editor.action(callCommand(insertImageCommand.key, { src, alt: '' })),
+
+  // 行内公式：把 LaTeX 包成 math_inline 节点插到光标处
+  mathInline: (editor, latex) =>
+    editor.action((ctx) => {
+      const view = ctx.get(editorViewCtx);
+      const type = view.state.schema.nodes.math_inline;
+      const value = (latex || '').trim();
+      if (!type || !value) return;
+      const node = type.create(null, view.state.schema.text(value));
+      view.dispatch(view.state.tr.replaceSelectionWith(node, false).scrollIntoView());
+    }),
+
+  // 行间（独立成行）公式：math_block 是 atom 节点，公式内容存在 value 属性里
+  mathBlock: (editor, latex) =>
+    editor.action((ctx) => {
+      const view = ctx.get(editorViewCtx);
+      const type = view.state.schema.nodes.math_block;
+      const value = (latex || '').trim();
+      if (!type || !value) return;
+      view.dispatch(view.state.tr.replaceSelectionWith(type.create({ value })).scrollIntoView());
+    }),
 };

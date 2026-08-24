@@ -9,7 +9,10 @@ import { indent } from '@milkdown/kit/plugin/indent';
 import { cursor } from '@milkdown/kit/plugin/cursor';
 import { prism } from '@milkdown/plugin-prism';
 import { remarkEmojiPlugin } from '@milkdown/plugin-emoji';
-import { math } from '@milkdown/plugin-math';
+// 公式：不使用 plugin-math 打包好的 `math`，而是挑出其中的 remark 解析 / katex 配置 /
+// 行内 schema，再换上自己的行间 schema 与输入规则（见 mathRules.js 的注释）。
+import { remarkMathPlugin, katexOptionsCtx, mathInlineSchema } from '@milkdown/plugin-math';
+import { mathBlock, mathInlineRule, mathBlockRule, mathBlockEdit } from './mathRules';
 import { upload, uploadConfig } from '@milkdown/plugin-upload';
 import { $nodeSchema, $inputRule } from '@milkdown/utils';
 import { InputRule } from '@milkdown/prose/inputrules';
@@ -140,7 +143,13 @@ export function createMilkdown(root, { defaultValue = '', onMarkdownUpdated, onS
     .use(linkInputRule)
     .use(linkBackspace)
     .use(linkEnterRule)
-    .use(math)
+    // 公式：remark 解析 + katex 配置 + 行内 schema 来自 plugin-math，
+    // 行间 schema 与全部输入规则用自己的实现（修正 $$...$$ 被提前识别成行内公式的问题）
+    .use([remarkMathPlugin, katexOptionsCtx, mathInlineSchema].flat())
+    .use(mathBlock)
+    .use(mathInlineRule)
+    .use(mathBlockRule)
+    .use(mathBlockEdit)
     .use(upload)
     .use(mermaidPreview)
     .use(focusMode)

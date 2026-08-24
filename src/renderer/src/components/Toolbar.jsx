@@ -1,4 +1,4 @@
-import React, { useRef, useState } from 'react';
+import React, { useRef, useState, useEffect } from 'react';
 import InputDialog from './InputDialog';
 import TablePicker from './TablePicker';
 
@@ -25,6 +25,8 @@ const ICONS = {
   image: <I><rect x="2" y="2.5" width="12" height="11" rx="1.5" /><circle cx="5.5" cy="6" r="1.1" /><path d="M2.5 11.5 6 8l3 3 2-2 2.5 2.5" /></I>,
   paragraph: <I><path d="M3 3h6.5a2.5 2.5 0 0 1 0 5H3z" /><path d="M3 8h8.5a2.5 2.5 0 0 1 0 5H3z" /></I>,
   headingNumbering: <I><path d="M3 2.5h3.5" /><path d="M3 7.5h3.5" /><path d="M3 12.5h3.5" /><path d="M3 2.5v5M3 7.5v5" /><path d="M9.5 4h3.5" /><path d="M9.5 9h3.5" /><path d="M9.5 14h3.5" /></I>,
+  // 公式：借用数学里 √ 与分数线的意象，比字母 Σ 更中性
+  math: <I><path d="M2 8.2l2 3.3 3-8.5h7" /><path d="M9.5 9.5h4.5" /><path d="M10.5 7v-.01M13 12v-.01" /></I>,
 };
 
 const ToolButton = React.forwardRef(function ToolButton({ title, icon, onClick, active }, ref) {
@@ -46,6 +48,88 @@ function Divider() {
   return <span className="tool-divider" />;
 }
 
+// ===== 段落格式下拉：替代原生 <select>（原生控件在 macOS 上样式无法统一，观感突兀） =====
+const BLOCK_OPTIONS = [
+  { value: 'p', label: '正文' },
+  { value: '1', label: '标题 1' },
+  { value: '2', label: '标题 2' },
+  { value: '3', label: '标题 3' },
+  { value: '4', label: '标题 4' },
+  { value: '5', label: '标题 5' },
+  { value: '6', label: '标题 6' },
+];
+
+function BlockSelect({ value, onChange }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef(null);
+  const btnRef = useRef(null);
+  // 菜单用 fixed 定位：.toolbar 有 overflow hidden/auto，absolute 子元素会被裁切
+  const [menuPos, setMenuPos] = useState(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const handler = (e) => {
+      if (ref.current && !ref.current.contains(e.target)) setOpen(false);
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [open]);
+
+  const toggle = () => {
+    setOpen((v) => {
+      const next = !v;
+      if (next && btnRef.current) {
+        const r = btnRef.current.getBoundingClientRect();
+        setMenuPos({ left: r.left, top: r.bottom + 4 });
+      }
+      return next;
+    });
+  };
+
+  const current = BLOCK_OPTIONS.find((o) => o.value === value);
+
+  return (
+    <div className="tool-select" ref={ref}>
+      <button
+        ref={btnRef}
+        type="button"
+        className={'tool-select-btn' + (open ? ' open' : '')}
+        title="段落格式"
+        onMouseDown={(e) => e.preventDefault()}
+        onClick={toggle}
+      >
+        <span className="tool-select-label">{current ? current.label : '段落'}</span>
+        <svg className="tool-select-caret" width="9" height="9" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M3 5l3 3 3-3" />
+        </svg>
+      </button>
+      {open && menuPos && (
+        <div className="tool-select-menu" style={{ left: menuPos.left, top: menuPos.top }}>
+          {BLOCK_OPTIONS.map((o) => (
+            <button
+              key={o.value}
+              type="button"
+              className={'tool-select-item' + (o.value === value ? ' active' : '') + ' lv-' + o.value}
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={() => {
+                onChange(o.value);
+                setOpen(false);
+              }}
+            >
+              <span className="tool-select-item-label">{o.label}</span>
+              {o.value === value && (
+                <svg className="tool-select-check" width="11" height="11" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M2.5 6.5l2.5 2.5 4.5-5" />
+                </svg>
+              )}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function Toolbar({ onAction, activeFormats = {}, headingNumbering = false, onToggleHeadingNumbering, fontSize = 13, onChangeFontSize }) {
   const fileInputRef = useRef(null);
   const [linkOpen, setLinkOpen] = useState(false);
@@ -54,6 +138,10 @@ export default function Toolbar({ onAction, activeFormats = {}, headingNumbering
   // 表格选择器状态
   const [tablePickerOpen, setTablePickerOpen] = useState(false);
   const tableBtnRef = useRef(null);
+  // 公式弹窗：latex 内容 + 行内/行间模式
+  const [mathOpen, setMathOpen] = useState(false);
+  const [mathLatex, setMathLatex] = useState('');
+  const [mathDisplay, setMathDisplay] = useState(true); // true = 独立成行
 
   // 段落下拉的受控值：反映当前光标所在段落类型
   const headingValue = activeFormats.heading
@@ -62,8 +150,7 @@ export default function Toolbar({ onAction, activeFormats = {}, headingNumbering
       ? 'p'
       : '';
 
-  const handleHeading = (e) => {
-    const v = e.target.value;
+  const handleHeading = (v) => {
     if (!v) return;
     if (v === 'p') onAction('paragraph');
     else onAction('heading', Number(v));
@@ -77,6 +164,15 @@ export default function Toolbar({ onAction, activeFormats = {}, headingNumbering
     setLinkOpen(false);
     setLinkHref('');
     setLinkText('');
+  };
+
+  const confirmMath = () => {
+    const latex = mathLatex.trim();
+    if (latex) {
+      onAction(mathDisplay ? 'mathBlock' : 'mathInline', latex);
+    }
+    setMathOpen(false);
+    setMathLatex('');
   };
 
   // 本地文件选择 → 保存到本地 → 插入
@@ -95,82 +191,93 @@ export default function Toolbar({ onAction, activeFormats = {}, headingNumbering
 
   return (
     <div className="toolbar">
-      <select
-        className="toolbar-select"
-        value={headingValue}
-        onChange={handleHeading}
-        title="段落格式"
-      >
-        <option value="" disabled>
-          段落
-        </option>
-        <option value="p">正文</option>
-        <option value="1">标题 1</option>
-        <option value="2">标题 2</option>
-        <option value="3">标题 3</option>
-        <option value="4">标题 4</option>
-        <option value="5">标题 5</option>
-        <option value="6">标题 6</option>
-      </select>
+      <BlockSelect value={headingValue} onChange={handleHeading} />
 
       <Divider />
 
-      <ToolButton title="加粗 (⌘B)" icon={ICONS.bold} active={activeFormats.bold} onClick={() => onAction('bold')} />
-      <ToolButton title="斜体 (⌘I)" icon={ICONS.italic} active={activeFormats.italic} onClick={() => onAction('italic')} />
-      <ToolButton title="删除线" icon={ICONS.strikethrough} active={activeFormats.strikethrough} onClick={() => onAction('strikethrough')} />
-      <ToolButton title="行内代码" icon={ICONS.inlineCode} active={activeFormats.inlineCode} onClick={() => onAction('inlineCode')} />
+      <div className="tool-group">
+        <ToolButton title="加粗 (⌘B)" icon={ICONS.bold} active={activeFormats.bold} onClick={() => onAction('bold')} />
+        <ToolButton title="斜体 (⌘I)" icon={ICONS.italic} active={activeFormats.italic} onClick={() => onAction('italic')} />
+        <ToolButton title="删除线" icon={ICONS.strikethrough} active={activeFormats.strikethrough} onClick={() => onAction('strikethrough')} />
+        <ToolButton title="行内代码" icon={ICONS.inlineCode} active={activeFormats.inlineCode} onClick={() => onAction('inlineCode')} />
+      </div>
 
-      <Divider />
+      <div className="tool-group">
+        <ToolButton title="无序列表" icon={ICONS.bulletList} active={activeFormats.bulletList} onClick={() => onAction('bulletList')} />
+        <ToolButton title="有序列表" icon={ICONS.orderedList} active={activeFormats.orderedList} onClick={() => onAction('orderedList')} />
+        <ToolButton title="任务列表" icon={ICONS.taskList} active={activeFormats.taskList} onClick={() => onAction('taskList')} />
+        <ToolButton title="引用" icon={ICONS.blockquote} active={activeFormats.blockquote} onClick={() => onAction('blockquote')} />
+      </div>
 
-      <ToolButton title="无序列表" icon={ICONS.bulletList} active={activeFormats.bulletList} onClick={() => onAction('bulletList')} />
-      <ToolButton title="有序列表" icon={ICONS.orderedList} active={activeFormats.orderedList} onClick={() => onAction('orderedList')} />
-      <ToolButton title="任务列表" icon={ICONS.taskList} active={activeFormats.taskList} onClick={() => onAction('taskList')} />
-      <ToolButton title="引用" icon={ICONS.blockquote} active={activeFormats.blockquote} onClick={() => onAction('blockquote')} />
+      <div className="tool-group">
+        <ToolButton title="代码块" icon={ICONS.codeBlock} active={activeFormats.codeBlock} onClick={() => onAction('codeBlock')} />
+        <ToolButton
+          title="插入表格"
+          icon={ICONS.table}
+          onClick={() => setTablePickerOpen(true)}
+          ref={tableBtnRef}
+        />
+        <ToolButton title="分割线" icon={ICONS.hr} onClick={() => onAction('hr')} />
+      </div>
 
-      <Divider />
+      <div className="tool-group">
+        <ToolButton
+          title="插入链接"
+          icon={ICONS.link}
+          active={activeFormats.link}
+          onClick={() => {
+            setLinkHref('');
+            setLinkText('');
+            setLinkOpen(true);
+          }}
+        />
+        <ToolButton
+          title="插入图片（选择本地文件）"
+          icon={ICONS.image}
+          onClick={() => fileInputRef.current?.click()}
+        />
+        <ToolButton
+          title="插入公式"
+          icon={ICONS.math}
+          active={activeFormats.mathInline || activeFormats.mathBlock}
+          onClick={() => {
+            setMathLatex('');
+            setMathOpen(true);
+          }}
+        />
+        <ToolButton
+          title={headingNumbering ? '关闭标题编号' : '开启标题编号'}
+          icon={ICONS.headingNumbering}
+          active={headingNumbering}
+          onClick={() => onToggleHeadingNumbering && onToggleHeadingNumbering()}
+        />
+      </div>
 
-      <ToolButton title="代码块" icon={ICONS.codeBlock} active={activeFormats.codeBlock} onClick={() => onAction('codeBlock')} />
-      <ToolButton
-        title="插入表格"
-        icon={ICONS.table}
-        onClick={() => setTablePickerOpen(true)}
-        ref={tableBtnRef}
-      />
-      <ToolButton title="分割线" icon={ICONS.hr} onClick={() => onAction('hr')} />
+      {/* 右侧：字号调整，与左侧编辑动作分离 */}
+      <span className="tool-spacer" />
 
-      <Divider />
-
-      <ToolButton
-        title="插入链接"
-        icon={ICONS.link}
-        active={activeFormats.link}
-        onClick={() => {
-          setLinkHref('');
-          setLinkText('');
-          setLinkOpen(true);
-        }}
-      />
-      <ToolButton
-        title="插入图片（选择本地文件）"
-        icon={ICONS.image}
-        onClick={() => fileInputRef.current?.click()}
-      />
-
-      <Divider />
-
-      <ToolButton
-        title={headingNumbering ? '关闭标题编号' : '开启标题编号'}
-        icon={ICONS.headingNumbering}
-        active={headingNumbering}
-        onClick={() => onToggleHeadingNumbering && onToggleHeadingNumbering()}
-      />
-
-      <Divider />
-
-      <div className="fontsize-control" title="调整正文字号（⌘+ / ⌘-）">
-        <button type="button" aria-label="缩小字号" onClick={() => onChangeFontSize && onChangeFontSize(-1)}>−</button>
+      <div className="fontsize-control" title="调整正文字号（⌘+ / ⌘−）">
+        <button
+          type="button"
+          aria-label="缩小字号"
+          onMouseDown={(e) => e.preventDefault()}
+          onClick={() => onChangeFontSize && onChangeFontSize(-1)}
+        >
+          <svg width="11" height="11" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round">
+            <path d="M2.5 6h7" />
+          </svg>
+        </button>
         <span className="fontsize-value">{fontSize}</span>
-        <button type="button" aria-label="放大字号" onClick={() => onChangeFontSize && onChangeFontSize(1)}>+</button>
+        <button
+          type="button"
+          aria-label="放大字号"
+          onMouseDown={(e) => e.preventDefault()}
+          onClick={() => onChangeFontSize && onChangeFontSize(1)}
+        >
+          <svg width="11" height="11" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round">
+            <path d="M6 2.5v7M2.5 6h7" />
+          </svg>
+        </button>
       </div>
 
       {/* 隐藏的本地图片选择 */}
@@ -208,6 +315,35 @@ export default function Toolbar({ onAction, activeFormats = {}, headingNumbering
         anchorRect={tableBtnRef.current?.getBoundingClientRect()}
         onPick={(row, col) => onAction('tableInsert', { row, col })}
         onClose={() => setTablePickerOpen(false)}
+      />
+
+      {/* 公式弹窗：LaTeX 输入 + 行内/行间切换 */}
+      <InputDialog
+        open={mathOpen}
+        title="插入公式"
+        value={mathLatex}
+        placeholder="LaTeX，如 \frac{a}{b} 或 \sum_{i=1}^{n} i"
+        onChange={setMathLatex}
+        onConfirm={confirmMath}
+        onCancel={() => { setMathOpen(false); setMathLatex(''); }}
+        extra={
+          <div className="math-mode-switch">
+            <button
+              type="button"
+              className={mathDisplay ? '' : 'active'}
+              onClick={() => setMathDisplay(false)}
+            >
+              行内
+            </button>
+            <button
+              type="button"
+              className={mathDisplay ? 'active' : ''}
+              onClick={() => setMathDisplay(true)}
+            >
+              独立成行
+            </button>
+          </div>
+        }
       />
 
     </div>

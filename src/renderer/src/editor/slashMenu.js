@@ -10,10 +10,13 @@ function runBlockCommand(view, command) {
   const { state } = view;
   const { selection } = state;
   const $from = selection.$from;
-  const blockStart = $from.before($from.depth);
-  // 先删除 "/xxx" 查询文本（光标落到块首），再执行块级命令
+  // 用 start() 而不是 before()：
+  //   before(depth) 是「该块节点之前」的位置，删到那里会把块的起始边界一起删掉，
+  //   导致当前块与上一个块合并 —— 表现为上一行的文字被并进新建的代码块/引用里。
+  //   start(depth) 才是「该块内容的起始」位置，删除范围只覆盖块内的 "/xxx" 文本。
+  const contentStart = $from.start($from.depth);
   if ($from.parent.textContent.startsWith('/')) {
-    view.dispatch(state.tr.delete(blockStart, $from.pos));
+    view.dispatch(state.tr.delete(contentStart, $from.pos));
   }
   command(view.state, view.dispatch);
 }

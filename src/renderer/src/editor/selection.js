@@ -29,6 +29,8 @@ export function getActiveFormats(ctx) {
     taskList: false,
     blockquote: false,
     codeBlock: false,
+    mathInline: false,
+    mathBlock: false,
   };
 
   const markActive = (markName) => {
@@ -65,11 +67,30 @@ export function getActiveFormats(ctx) {
       result.codeBlock = true;
     } else if (name === 'list_item' && node.attrs.checked != null) {
       result.taskList = true;
+    } else if (name === 'math_inline') {
+      result.mathInline = true;
+    } else if (name === 'math_block') {
+      result.mathBlock = true;
     }
   }
 
+  // 公式是 atom 节点，选中它时是 NodeSelection，不在上面的祖先链里，需单独判断
+  const selectedNode = selection.node;
+  if (selectedNode) {
+    if (selectedNode.type.name === 'math_inline') result.mathInline = true;
+    else if (selectedNode.type.name === 'math_block') result.mathBlock = true;
+  }
+
   // 段落：无任何块级格式时的默认态
-  if (!result.heading && !result.bulletList && !result.orderedList && !result.taskList && !result.blockquote && !result.codeBlock) {
+  if (
+    !result.heading &&
+    !result.bulletList &&
+    !result.orderedList &&
+    !result.taskList &&
+    !result.blockquote &&
+    !result.codeBlock &&
+    !result.mathBlock
+  ) {
     result.paragraph = true;
   }
 

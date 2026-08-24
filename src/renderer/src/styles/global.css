@@ -333,72 +333,151 @@ body {
   flex: 0 0 auto;
   display: flex;
   align-items: center;
-  gap: 2px;
-  padding: 4px 10px;
+  gap: 10px;               /* 组间距，靠留白分组，不画分割线 */
+  padding: 3px 10px 6px;
   background: var(--bg);
   border-bottom: 1px solid var(--border);
   user-select: none;
   overflow-x: auto;
   overflow-y: hidden;
+  scrollbar-width: none;
+}
+.toolbar::-webkit-scrollbar {
+  height: 0;
+}
+/* 同类动作聚成一组：组内紧贴，组间靠 .toolbar 的 gap 分开 */
+.tool-group {
+  display: flex;
+  align-items: center;
+  gap: 1px;
+  flex: 0 0 auto;
+}
+.tool-spacer {
+  flex: 1 1 auto;
+  min-width: 8px;
 }
 .tool-btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 30px;
-  height: 28px;
+  width: 27px;
+  height: 26px;
   border: none;
   background: transparent;
-  color: var(--text-secondary);
+  color: var(--text-muted);
   border-radius: 6px;
   cursor: pointer;
   flex: 0 0 auto;
-  transition: background 0.1s ease, color 0.1s ease;
+  transition: background 0.12s ease, color 0.12s ease;
 }
 .tool-btn:hover {
   background: var(--bg-hover);
   color: var(--text);
 }
+/* 激活态用「浅底 + 深字」表达，不用强调色，保持极简 */
 .tool-btn.active {
-  background: var(--bg-active);
-  color: var(--accent);
-}
-.tool-divider {
-  width: 1px;
-  height: 18px;
-  background: var(--border);
-  margin: 0 6px;
-  flex: 0 0 auto;
-}
-.toolbar-select {
-  flex: 0 0 auto;
-  height: 28px;
-  padding: 0 8px;
-  border: 1px solid var(--border);
-  border-radius: 6px;
-  background: var(--bg);
-  color: var(--text-secondary);
-  font-size: 12.5px;
-  cursor: pointer;
-  outline: none;
-  font-family: var(--editor-font);
-}
-.toolbar-select:hover {
   background: var(--bg-hover);
   color: var(--text);
 }
-.toolbar-select:focus {
-  border-color: var(--accent);
+.tool-divider {
+  width: 1px;
+  height: 16px;
+  background: var(--border);
+  flex: 0 0 auto;
 }
-/* 字号调整控件：− 数字 + ，极简风格，与工具栏按钮一致 */
+
+/* ===== 段落格式下拉（自定义，替代原生 select） ===== */
+.tool-select {
+  position: relative;
+  flex: 0 0 auto;
+}
+.tool-select-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 5px;
+  width: 74px;
+  height: 26px;
+  padding: 0 7px 0 9px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 12.5px;
+  font-family: var(--editor-font);
+  cursor: pointer;
+  transition: background 0.12s ease, color 0.12s ease;
+}
+.tool-select-btn:hover,
+.tool-select-btn.open {
+  background: var(--bg-hover);
+  color: var(--text);
+}
+.tool-select-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.tool-select-caret {
+  flex: 0 0 auto;
+  opacity: 0.6;
+}
+.tool-select-menu {
+  position: fixed;         /* .toolbar 有 overflow，absolute 会被裁切，故用 fixed */
+  min-width: 132px;
+  padding: 4px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: var(--shadow);
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  z-index: 2000;
+}
+.tool-select-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 5px 9px;
+  border: none;
+  background: transparent;
+  color: var(--text-secondary);
+  border-radius: 5px;
+  cursor: pointer;
+  font-family: var(--editor-font);
+  text-align: left;
+  white-space: nowrap;
+}
+.tool-select-item:hover {
+  background: var(--bg-hover);
+  color: var(--text);
+}
+.tool-select-item.active {
+  color: var(--text);
+}
+.tool-select-check {
+  flex: 0 0 auto;
+  opacity: 0.55;
+}
+/* 每个选项按其层级显示对应字号/字重，作为可视化预览 */
+.tool-select-item.lv-p .tool-select-item-label { font-size: 12.5px; }
+.tool-select-item.lv-1 .tool-select-item-label { font-size: 16px; font-weight: 700; }
+.tool-select-item.lv-2 .tool-select-item-label { font-size: 15px; font-weight: 600; }
+.tool-select-item.lv-3 .tool-select-item-label { font-size: 14px; font-weight: 600; }
+.tool-select-item.lv-4 .tool-select-item-label { font-size: 13px; font-weight: 600; }
+.tool-select-item.lv-5 .tool-select-item-label { font-size: 12.5px; font-weight: 600; }
+.tool-select-item.lv-6 .tool-select-item-label { font-size: 12px; font-weight: 600; }
+
+/* 字号调整控件：− 数字 + ，无边框，靠 hover 反馈，与工具栏按钮同语言 */
 .fontsize-control {
   display: inline-flex;
   align-items: center;
-  gap: 2px;
+  gap: 1px;
   flex: 0 0 auto;
-  height: 28px;
-  padding: 0 3px;
-  border: 1px solid var(--border);
+  height: 26px;
+  padding: 0 2px;
   border-radius: 6px;
 }
 .fontsize-control button {
@@ -409,22 +488,20 @@ body {
   justify-content: center;
   border: none;
   background: transparent;
-  color: var(--text-secondary);
+  color: var(--text-muted);
   border-radius: 5px;
   cursor: pointer;
-  font-size: 14px;
-  line-height: 1;
-  transition: background 0.1s ease, color 0.1s ease;
+  transition: background 0.12s ease, color 0.12s ease;
 }
 .fontsize-control button:hover {
   background: var(--bg-hover);
   color: var(--text);
 }
 .fontsize-value {
-  min-width: 24px;
+  min-width: 22px;
   text-align: center;
-  font-size: 12.5px;
-  color: var(--text-secondary);
+  font-size: 12px;
+  color: var(--text-muted);
   font-variant-numeric: tabular-nums;
   user-select: none;
 }
@@ -451,17 +528,18 @@ body {
 
 /* ===== 状态栏 ===== */
 .statusbar {
-  flex: 0 0 26px;
-  height: 26px;
+  flex: 0 0 24px;
+  height: 24px;
   display: flex;
   align-items: center;
   padding: 0 14px;
-  font-size: 12px;
+  font-size: 11.5px;
   color: var(--text-muted);
   background: var(--bg);
   border-top: none;
-  gap: 16px;
+  gap: 14px;
   user-select: none;
+  opacity: 0.75;
 }
 .statusbar .spacer {
   flex: 1;
@@ -680,14 +758,12 @@ body {
   width: 100%;
   font-size: 0.95em !important;
   line-height: 1.65 !important;
-  border: 1px solid var(--table-border);
-  border-radius: 6px;
-  overflow: hidden;
+  border: 1px solid var(--table-border) !important;
   box-shadow: none !important;
 }
 .editor-container .milkdown th,
 .editor-container .milkdown td {
-  border: 1px solid var(--table-border);
+  border: 1px solid var(--table-border) !important;
   padding: 8px 14px !important;
   text-align: left;
   vertical-align: top;
@@ -844,7 +920,7 @@ body {
 
 /* ===== 标题栏激活态 ===== */
 .titlebar .tb-btn.active {
-  background: var(--bg-active);
+  background: var(--bg-hover);
   color: var(--text);
 }
 
@@ -873,8 +949,9 @@ body {
   background: var(--bg-hover);
 }
 .filetree-row.active {
-  background: var(--bg-active);
-  color: var(--accent);
+  background: var(--bg-hover);
+  color: var(--text);
+  font-weight: 500;
 }
 .filetree-arrow {
   flex: 0 0 14px;
@@ -900,7 +977,7 @@ body {
   color: var(--text-muted);
 }
 .filetree-row.active .filetree-icon {
-  color: var(--accent);
+  color: var(--text-secondary);
 }
 .filetree-label {
   flex: 1;
@@ -1036,9 +1113,10 @@ body {
   color: var(--text);
 }
 .outline-item.active {
-  color: var(--accent);
-  border-left-color: var(--accent);
-  background: var(--bg-active);
+  color: var(--text);
+  border-left-color: var(--border-strong);
+  background: var(--bg-hover);
+  font-weight: 500;
 }
 .outline-empty {
   padding: 16px 12px;
@@ -1046,88 +1124,126 @@ body {
   color: var(--text-muted);
 }
 
-/* ===== 标签栏 ===== */
+/* ===== 标签栏（胶囊式） ===== */
 .tabbar {
   flex: 0 0 auto;
   display: flex;
-  align-items: stretch;
-  height: 30px;
+  align-items: center;
+  gap: 4px;
+  height: 34px;
+  padding: 0 8px;
   background: var(--bg);
   border-bottom: none;
+  user-select: none;
 }
 .tabbar-tabs {
   flex: 1;
   display: flex;
-  align-items: stretch;
+  align-items: center;
+  gap: 3px;
   overflow-x: auto;
   overflow-y: hidden;
+  min-width: 0;
+  /* 隐藏水平滚动条，标签多时靠滚轮/触控板横向滚动 */
+  scrollbar-width: none;
+}
+.tabbar-tabs::-webkit-scrollbar {
+  height: 0;
 }
 .tab {
   display: flex;
   align-items: center;
-  gap: 6px;
-  padding: 0 6px 0 14px;
-  min-width: 90px;
-  max-width: 210px;
-  border-right: 1px solid var(--border);
+  gap: 2px;
+  height: 24px;
+  padding: 0 4px 0 10px;
+  min-width: 0;
+  max-width: 190px;
+  border-radius: 6px;
   cursor: pointer;
   color: var(--text-muted);
-  font-size: 13px;
+  font-size: 12.5px;
   white-space: nowrap;
   background: transparent;
-  transition: color 0.1s ease;
+  flex: 0 1 auto;
+  transition: background 0.12s ease, color 0.12s ease;
 }
 .tab:hover {
   background: var(--bg-hover);
-  color: var(--text);
+  color: var(--text-secondary);
 }
 .tab.active {
-  background: var(--bg);
+  background: var(--bg-hover);
   color: var(--text);
-  box-shadow: inset 0 -2px 0 var(--accent);
+  font-weight: 500;
 }
 .tab-name {
-  flex: 1;
   overflow: hidden;
   text-overflow: ellipsis;
+  min-width: 0;
 }
-.tab-dirty {
-  color: var(--accent);
-  font-size: 9px;
-  margin-right: 2px;
-  vertical-align: middle;
-}
+/* 关闭按钮：未保存时显示圆点，hover 时切换为 ×；已保存时只在 hover 标签才出现 × */
 .tab-close {
+  position: relative;
   flex: 0 0 auto;
-  width: 20px;
-  height: 20px;
+  width: 18px;
+  height: 18px;
+  border: none;
+  padding: 0;
+  background: transparent;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  border-radius: 5px;
+  border-radius: 4px;
   color: var(--text-muted);
-  font-size: 15px;
-  line-height: 1;
-  opacity: 0;
-  transition: opacity 0.1s ease;
-}
-.tab:hover .tab-close,
-.tab.active .tab-close {
-  opacity: 1;
+  cursor: pointer;
+  transition: background 0.12s ease, color 0.12s ease;
 }
 .tab-close:hover {
   background: var(--bg-active);
   color: var(--text);
 }
+.tab-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--text-muted);
+  opacity: 0;
+  transition: opacity 0.12s ease;
+}
+.tab-cross {
+  position: absolute;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  transition: opacity 0.12s ease;
+}
+/* 未保存：默认露出圆点 */
+.tab.dirty .tab-dot {
+  opacity: 0.75;
+}
+/* hover 标签（或激活标签）时露出 ×，同时隐藏圆点 */
+.tab:hover .tab-cross,
+.tab.active .tab-cross {
+  opacity: 1;
+}
+.tab:hover .tab-dot,
+.tab.active .tab-dot {
+  opacity: 0;
+}
 .tabbar-new {
   flex: 0 0 auto;
-  width: 38px;
+  width: 24px;
+  height: 24px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   border: none;
+  border-radius: 6px;
   background: transparent;
   color: var(--text-muted);
-  font-size: 18px;
   cursor: pointer;
-  transition: color 0.1s ease;
+  transition: background 0.12s ease, color 0.12s ease;
 }
 .tabbar-new:hover {
   background: var(--bg-hover);
@@ -1289,18 +1405,36 @@ body {
   vertical-align: middle;
   margin: 0 2px;
 }
+/* 行间公式：独立成块、水平居中 */
 .editor-container .milkdown [data-type='math_block'] {
   display: block;
   text-align: center;
-  margin: 1em 0;
-  padding: 0.5em 0;
+  margin: 1.1em 0;
+  padding: 0.35em 0;
   overflow-x: auto;
+  overflow-y: hidden;
+  cursor: pointer;
+  border-radius: 6px;
+  transition: background 0.12s ease;
+}
+.editor-container .milkdown [data-type='math_block']:hover {
+  background: var(--bg-hover);
+}
+/* 被选中（NodeSelection）时给出明确反馈，因为 atom 节点内部没有光标 */
+.editor-container .milkdown [data-type='math_block'].ProseMirror-selectednode {
+  background: var(--bg-hover);
+  outline: 1px solid var(--border-strong);
 }
 .editor-container .milkdown .katex {
   font-size: 1.05em;
 }
+/* katex-display 自带 display:block + text-align:center + margin，
+   外层容器已负责间距，这里只清掉它自己的 margin 避免叠加 */
 .editor-container .milkdown .katex-display {
   margin: 0;
+}
+.editor-container .milkdown [data-type='math_block'] .katex-display > .katex {
+  text-align: center;
 }
 
 /* ===== Mermaid 图表 ===== */
@@ -1594,6 +1728,34 @@ body {
 .modal-btn.primary:hover {
   background: var(--accent-hover);
 }
+/* 公式弹窗里的「行内 / 独立成行」分段切换 */
+.math-mode-switch {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 2px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
+.math-mode-switch button {
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 12px;
+  padding: 3px 9px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-family: var(--editor-font);
+  transition: background 0.12s ease, color 0.12s ease;
+}
+.math-mode-switch button:hover {
+  color: var(--text);
+}
+.math-mode-switch button.active {
+  background: var(--bg-hover);
+  color: var(--text);
+  font-weight: 500;
+}
 
 /* ===== 表格网格选择器 (TablePicker) ===== */
 .table-picker {
@@ -1622,11 +1784,11 @@ body {
   box-sizing: border-box;
 }
 .table-picker-cell:hover {
-  border-color: var(--accent);
+  border-color: var(--text-muted);
 }
 .table-picker-cell.active {
-  background: rgba(65, 131, 196, 0.18);
-  border-color: var(--accent);
+  background: var(--bg-hover);
+  border-color: var(--text-secondary);
 }
 .table-picker-info {
   display: flex;
@@ -1652,9 +1814,9 @@ body {
   margin-left: 6px;
 }
 .table-picker-ok:hover:not(:disabled) {
-  background: var(--accent);
-  border-color: var(--accent);
-  color: #fff;
+  background: var(--bg-hover);
+  border-color: var(--border-strong);
+  color: var(--text);
 }
 .table-picker-ok:disabled {
   opacity: 0.35;
