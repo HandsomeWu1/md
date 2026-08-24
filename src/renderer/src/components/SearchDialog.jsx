@@ -79,11 +79,11 @@ export default function SearchDialog({
         <div className="search-row search-options">
           <button
             type="button"
-            className={`search-btn ${mode === 'replace' ? 'search-btn-active' : ''}`}
+            className="search-btn"
             onClick={onToggleMode}
-            title="切换替换模式"
+            title={mode === 'replace' ? '切换回查找' : '切换到替换'}
           >
-            替换
+            {mode === 'replace' ? '查找' : '替换'}
           </button>
           <label className="search-case">
             <input

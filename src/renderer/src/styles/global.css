@@ -1354,11 +1354,6 @@ body {
 .search-btn:hover {
   background: var(--bg-hover);
 }
-.search-btn-active {
-  border-color: var(--accent);
-  color: #fff;
-  background: var(--accent);
-}
 .search-close {
   border-color: var(--accent);
   color: var(--accent);
