@@ -65,6 +65,25 @@ export const actions = {
     }),
   image: (editor, src) => editor.action(callCommand(insertImageCommand.key, { src, alt: '' })),
 
+  // 字号：对当前选区施加/移除 fontSize 标记（size 为 null 或 < MIN 时移除）。
+  // 仅作用于选区，不影响整篇文档。
+  fontSize: (editor, size) =>
+    editor.action((ctx) => {
+      const view = ctx.get(editorViewCtx);
+      const markType = view.state.schema.marks.fontSize;
+      if (!markType) return;
+      const { state } = view;
+      const { from, to, empty } = state.selection;
+      if (empty) return; // 无选区时由全局逻辑处理（见 App.applyFontSizeDelta）
+      const tr = state.tr;
+      if (!size || size < 8) {
+        tr.removeMark(from, to, markType);
+      } else {
+        tr.addMark(from, to, markType.create({ size }));
+      }
+      view.dispatch(tr.scrollIntoView());
+    }),
+
   // 行内公式：把 LaTeX 包成 math_inline 节点插到光标处
   mathInline: (editor, latex) =>
     editor.action((ctx) => {

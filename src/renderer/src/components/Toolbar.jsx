@@ -12,7 +12,8 @@ const I = ({ children, viewBox = '0 0 16 16' }) => (
 const ICONS = {
   bold: <I><path d="M4 2.5h4.2a2.5 2.5 0 0 1 0 5H4z" /><path d="M4 7.5h5a2.5 2.5 0 0 1 0 5H4z" /></I>,
   italic: <I><path d="M6 2.5h4" /><path d="M6 13.5h4" /><path d="M8 2.5l-2 11" /></I>,
-  strikethrough: <I><path d="M3 5h10" /><path d="M4 4c0-1 .8-1.5 2-1.5h4c1.2 0 2 .5 2 1.5 0 2-3 1.5-3 4.5" /><path d="M2.5 8h11" /><path d="M7 12c0 1 .8 1.5 2 1.5 1 0 1.7-.4 1.7-1.2" /></I>,
+  // 删除线：字母 A 加一条贯穿横线，比原图标更直观
+  strikethrough: <I><text x="8" y="12.5" fontFamily="sans-serif" fontSize="12" fontWeight="600" textAnchor="middle" fill="currentColor" stroke="none">A</text><path d="M2.5 8.5h11" /></I>,
   inlineCode: <I><path d="M6 5 3 8l3 3" /><path d="M10 5l3 3-3 3" /></I>,
   bulletList: <I><circle cx="3" cy="4.5" r="0.9" fill="currentColor" stroke="none" /><circle cx="3" cy="8" r="0.9" fill="currentColor" stroke="none" /><circle cx="3" cy="11.5" r="0.9" fill="currentColor" stroke="none" /><path d="M6 4.5h7" /><path d="M6 8h7" /><path d="M6 11.5h7" /></I>,
   orderedList: <I><path d="M3 2.5h1.5v2" /><path d="M2.5 4.5H5" /><path d="M3 6.5 2 8h2.5" /><path d="M6 4.5h7" /><path d="M6 8h7" /><path d="M6 11.5h7" /><path d="M3 11.5h2.5v1.5L3 14h2.5" /></I>,

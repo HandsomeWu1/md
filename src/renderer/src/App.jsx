@@ -14,6 +14,7 @@ import { extractOutline, countWords, findInMarkdown, replaceAllInMarkdown } from
 import { buildExportHtml } from './utils/export';
 import { setFocusMode, setTypewriterMode } from './editor/modes';
 import { actions } from './editor/commands';
+import { editorViewCtx } from '@milkdown/kit/core';
 
 let uid = 0;
 const nextId = () => `tab-${++uid}`;
@@ -526,6 +527,36 @@ export default function App() {
     });
   }, []);
 
+  // 字号调整：有选区时只改选区字号（fontSize 标记）；无选区时改整篇默认字号。
+  const applyFontSizeDelta = useCallback(
+    (delta) => {
+      const editor = editorRef.current?.getEditor();
+      if (!editor) return;
+      editor.action((ctx) => {
+        const view = ctx.get(editorViewCtx);
+        const { state } = view;
+        const { from, to, empty } = state.selection;
+        if (empty) {
+          // 无选区：调整全局默认字号
+          changeFontSize(delta);
+          return;
+        }
+        const markType = state.schema.marks.fontSize;
+        if (!markType) return;
+        // 当前选区的字号（取选区起点处）：没有则回退到全局默认
+        const def = settings.fontSize || 13;
+        const at = state.doc.resolve(from + 1).marks().find((m) => m.type === markType);
+        const cur = at ? Number(at.attrs.size) : def;
+        const next = Math.min(96, Math.max(8, Math.round((cur || def) + delta)));
+        const tr = state.tr;
+        if (next <= 8) tr.removeMark(from, to, markType);
+        else tr.addMark(from, to, markType.create({ size: next }));
+        view.dispatch(tr.scrollIntoView());
+      });
+    },
+    [changeFontSize, settings.fontSize]
+  );
+
   // ---------- 极简模式 ----------
   const toggleLean = useCallback(() => {
     setSettings((s) => {
@@ -671,24 +702,23 @@ export default function App() {
   }, [toggleLean]);
 
   // 字号快捷键：Cmd/Ctrl + "+" 放大、Cmd/Ctrl + "-" 缩小
-  // 用 e.code 匹配物理键（Equal = +/=、Minus = -/_），不受 Shift 或键盘布局影响；
-  // capture 阶段 + stopPropagation，确保在编辑器/ProseMirror 处理前拦截，避免按键被吞。
+  // 有选区时作用于选区，无选区时调整整篇默认字号。
   useEffect(() => {
     const onKey = (e) => {
       if (!(e.metaKey || e.ctrlKey)) return;
       if (e.code === 'Equal') {
         e.preventDefault();
         e.stopPropagation();
-        changeFontSize(1);
+        applyFontSizeDelta(1);
       } else if (e.code === 'Minus') {
         e.preventDefault();
         e.stopPropagation();
-        changeFontSize(-1);
+        applyFontSizeDelta(-1);
       }
     };
     window.addEventListener('keydown', onKey, true);
     return () => window.removeEventListener('keydown', onKey, true);
-  }, [changeFontSize]);
+  }, [applyFontSizeDelta]);
 
   // ---------- 渲染 ----------
   const handleToggleExpand = useCallback(
@@ -792,8 +822,8 @@ export default function App() {
                 activeFormats={activeFormats}
                 headingNumbering={!!settings.headingNumbering}
                 onToggleHeadingNumbering={toggleHeadingNumbering}
-                fontSize={settings.fontSize || 13}
-                onChangeFontSize={changeFontSize}
+                fontSize={activeFormats.fontSize != null ? activeFormats.fontSize : settings.fontSize || 13}
+                onChangeFontSize={applyFontSizeDelta}
               />
               <div
                 className={'editor-container' + (settings.headingNumbering ? ' heading-numbering' : '')}

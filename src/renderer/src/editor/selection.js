@@ -31,6 +31,7 @@ export function getActiveFormats(ctx) {
     codeBlock: false,
     mathInline: false,
     mathBlock: false,
+    fontSize: null,
   };
 
   const markActive = (markName) => {
@@ -50,6 +51,20 @@ export function getActiveFormats(ctx) {
   result.strikethrough = markActive('strike_through');
   result.inlineCode = markActive('inline_code');
   result.link = markActive('link');
+
+  // 选区处的字号：从光标/选区已有的 fontSize 标记读取
+  const fontSizeType = state.schema.marks.fontSize;
+  if (fontSizeType) {
+    let mark = null;
+    if (empty) {
+      if (state.storedMarks) mark = fontSizeType.isInSet(state.storedMarks);
+      if (!mark) mark = fontSizeType.isInSet($from.marks());
+    } else if (state.doc.rangeHasMark(from, to, fontSizeType)) {
+      const at = state.doc.resolve(from + 1).marks().find((m) => m.type === fontSizeType);
+      mark = at || null;
+    }
+    result.fontSize = mark ? Number(mark.attrs.size) : null;
+  }
 
   // 块类型：从最内层父节点向上遍历
   for (let d = $from.depth; d >= 1; d--) {

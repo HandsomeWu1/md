@@ -52,7 +52,11 @@ class SlashMenuView {
       offset: 8,
       shouldShow: (v) => {
         const text = this.provider.getContent(v);
-        return !!text && text.startsWith('/');
+        // 只在「块内容恰好就是 "/"」时弹出菜单。
+        // 旧逻辑用 startsWith('/')，导致只要段落以 "/" 开头菜单就一直挂着，
+        // 用户即使只想输入一个字面 "/"（如路径 "/usr/bin"）也会被菜单纠缠、无法退出。
+        // 按下 "/" 后若继续输入其它字符（如 "/h"），菜单自动收起，"/" 即作为普通文字保留。
+        return text === '/';
       },
     });
     this.provider.onShow = () => this.render();

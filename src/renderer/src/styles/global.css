@@ -650,6 +650,8 @@ body {
 }
 .editor-container .milkdown p {
   margin: 0.8em 0;
+  /* 覆盖 nord 主题里 .milkdown-theme-nord p 的 16px，使正文遵循全局/选区字号 */
+  font-size: var(--editor-font-size, 13px);
 }
 .editor-container .milkdown a {
   color: var(--link);

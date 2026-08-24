@@ -26,6 +26,8 @@ import { searchHighlight } from './searchHighlight';
 import { codeBlockLanguage } from './codeBlockLanguage';
 import { codeBlockBackspace } from './codeBlockBackspace';
 import { headingBackspace } from './headingBackspace';
+import { codeBlockEnter } from './codeBlockEnter';
+import { fontSizeMark } from './fontSizeMark';
 import { linkInputRule } from './linkInputRule';
 import { linkBackspace } from './linkBackspace';
 import { linkEnterRule } from './linkEnterRule';
@@ -130,6 +132,7 @@ export function createMilkdown(root, { defaultValue = '', onMarkdownUpdated, onS
         });
       }
     })
+    .use(codeBlockEnter)
     .use(commonmark)
     .use(gfm)
     .use(history)
@@ -161,5 +164,6 @@ export function createMilkdown(root, { defaultValue = '', onMarkdownUpdated, onS
     .use(codeBlockBackspace)
     .use(headingBackspace)
     .use(slash)
+    .use(fontSizeMark)
     .use(nord);
 }
