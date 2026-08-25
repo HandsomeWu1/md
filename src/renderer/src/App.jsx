@@ -600,8 +600,8 @@ export default function App() {
         const tr = state.tr;
         if (empty) {
           // 无选区：作用于光标所在块（段落）。
-          // 空行（块内无内容）时 start===end，addMark 在折叠处会写入「存储标记」，
-          // 后续输入自动继承该字号；非空行则整段套用。
+          // 空行（块内无内容）时 start===end，addMark(from,from) 是空操作（ProseMirror 对折叠范围不写标记），
+          // 改用「存储标记」(stored marks)：写入后，接下来在该行输入会自动继承该字号。
           const $from = state.doc.resolve(from);
           const depth = $from.depth;
           const start = $from.start(depth);
@@ -610,8 +610,15 @@ export default function App() {
           const at = state.doc.resolve(probe).marks().find((m) => m.type === markType);
           const cur = at ? Number(at.attrs.size) : def;
           const next = Math.min(96, Math.max(8, Math.round((cur || def) + delta)));
-          if (next <= 8) tr.removeMark(start, end, markType);
-          else tr.addMark(start, end, markType.create({ size: next }));
+          if (next <= 8) {
+            tr.removeMark(start, end, markType);
+            if (start === end) tr.setStoredMarks([]); // 空块：清除存储标记
+          } else if (start === end) {
+            // 空块：写入存储标记，输入时自动继承
+            tr.setStoredMarks([markType.create({ size: next })]);
+          } else {
+            tr.addMark(start, end, markType.create({ size: next }));
+          }
           view.dispatch(tr.scrollIntoView());
           return;
         }
