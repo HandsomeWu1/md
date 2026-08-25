@@ -2,7 +2,7 @@
 
 极简的所见即所得（WYSIWYG）Markdown 桌面编辑器，面向 **macOS Apple Silicon（M 系列芯片）**。本项目为**原创实现**，使用开源 Markdown 编辑框架 Milkdown，不包含任何第三方编辑器的私有代码、资源或商标。
 
-> 应用图标使用 `service/md-preview/src/md_preview/static/logo.png`。
+> 应用图标源图为 `build/icon.orig.png`（满幅）。实际打包用的 `build/icon.png` 由 `scripts/make-icon.py` 生成：遵循 Apple 图标网格——1024×1024 画布内图标本体只占 824×824（四周各留 100px 透明边距）、圆角半径 185，否则 Dock 里会比其它 App 明显偏大。修改 logo 后需重新运行该脚本（依赖 Pillow）。
 
 ## 功能
 
@@ -52,9 +52,11 @@ typora-dev/
 ├── electron-builder.yml        # 打包配置（mac arm64）
 ├── vite.config.mjs             # 渲染层构建配置
 ├── build/
-│   └── icon.png                # 应用图标（1024×1024）
+│   ├── icon.orig.png           # 图标源图（满幅，无留白）
+│   └── icon.png                # 应用图标（1024×1024，按 Apple 图标网格留白）
 ├── scripts/
 │   ├── build-mac-arm64.sh      # 一键构建 .dmg/.zip
+│   ├── make-icon.py            # 由 icon.orig.png 生成应用图标（改 logo 时才需跑）
 │   └── dev.sh                  # 本地开发
 └── src/
     ├── main/                   # Electron 主进程

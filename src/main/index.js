@@ -67,8 +67,9 @@ function createWindow() {
     },
   });
 
-  // macOS 开发环境下把 Dock 图标也换成项目 logo（打包后的图标由构建配置决定）
-  if (process.platform === 'darwin' && app.dock) {
+  // macOS 开发环境下把 Dock 图标换成项目 logo；打包后必须走构建生成的 .icns，
+  // 否则 setIcon 会覆盖系统图标（缺少 Apple 图标网格留白，Dock 里会明显偏大）。
+  if (process.platform === 'darwin' && app.dock && !app.isPackaged) {
     try {
       app.dock.setIcon(path.join(__dirname, 'assets/logo.png'));
     } catch {
