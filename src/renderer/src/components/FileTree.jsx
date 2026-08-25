@@ -32,11 +32,13 @@ function TreeNode({
   onDelete,
   onReveal,
   onContextMenu,
+  onMoveFile,
 }) {
   const isDir = node.type === 'dir';
   const isOpen = expanded.has(node.path);
   const isActive = !isDir && node.path === activePath;
   const children = isDir && isOpen ? childrenMap[node.path] : null;
+  const [dropTarget, setDropTarget] = useState(false);
 
   const handleRowClick = () => {
     if (isDir) onToggleExpand(node.path);
@@ -54,11 +56,43 @@ function TreeNode({
     onContextMenu(e.clientX, e.clientY, node.path, isDir);
   };
 
+  // 拖拽：文件可拖出；文件夹可作为放置目标（把文件移入该文件夹）
+  const handleDragStart = (e) => {
+    if (isDir) return;
+    e.dataTransfer.setData('text/plain', node.path);
+    e.dataTransfer.effectAllowed = 'move';
+  };
+  const handleDragOver = (e) => {
+    if (!isDir) return;
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    if (!dropTarget) setDropTarget(true);
+  };
+  const handleDragLeave = () => {
+    if (dropTarget) setDropTarget(false);
+  };
+  const handleDrop = (e) => {
+    if (!isDir) return;
+    e.preventDefault();
+    setDropTarget(false);
+    const src = e.dataTransfer.getData('text/plain');
+    if (src && src !== node.path && onMoveFile) onMoveFile(src, node.path);
+  };
+
   return (
     <div className="filetree-node">
       <div
-        className={'filetree-row' + (isActive ? ' active' : '')}
+        className={
+          'filetree-row' +
+          (isActive ? ' active' : '') +
+          (dropTarget ? ' droptarget' : '')
+        }
         style={{ paddingLeft: 6 + depth * 14 }}
+        draggable={!isDir}
+        onDragStart={handleDragStart}
+        onDragOver={handleDragOver}
+        onDragLeave={handleDragLeave}
+        onDrop={handleDrop}
         onClick={handleRowClick}
         onContextMenu={handleRowContextMenu}
       >
@@ -94,6 +128,7 @@ function TreeNode({
                 onDelete={onDelete}
                 onReveal={onReveal}
                 onContextMenu={onContextMenu}
+                onMoveFile={onMoveFile}
               />
             ))
           )}
@@ -117,6 +152,7 @@ export default function FileTree({
   onDelete,
   onRefresh,
   onReveal,
+  onMoveFile,
   rootName,
 }) {
   // menu: { x, y, path, isDir }；path 为 null 表示空白处右键
@@ -170,6 +206,7 @@ export default function FileTree({
           onRename={onRename}
           onDelete={onDelete}
           onReveal={onReveal}
+          onMoveFile={onMoveFile}
           onContextMenu={handleContextMenu}
         />
       ))}

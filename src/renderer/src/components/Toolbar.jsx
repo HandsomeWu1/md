@@ -14,12 +14,14 @@ const ICONS = {
   italic: <I><path d="M6 2.5h4" /><path d="M6 13.5h4" /><path d="M8 2.5l-2 11" /></I>,
   // 删除线：字母 A 加一条贯穿横线，比原图标更直观
   strikethrough: <I><text x="8" y="12.5" fontFamily="sans-serif" fontSize="12" fontWeight="600" textAnchor="middle" fill="currentColor" stroke="none">A</text><path d="M2.5 8.5h11" /></I>,
-  inlineCode: <I><path d="M6 5 3 8l3 3" /><path d="M10 5l3 3-3 3" /></I>,
+  // 内联代码：用「带边框的小代码片」图标（与代码块区分开）
+  inlineCode: <I><rect x="2.5" y="4.5" width="11" height="7" rx="1.6" /><path d="M6 7.4 4.6 8l1.4.6" /><path d="M10 7.4 11.4 8l-1.4.6" /></I>,
   bulletList: <I><circle cx="3" cy="4.5" r="0.9" fill="currentColor" stroke="none" /><circle cx="3" cy="8" r="0.9" fill="currentColor" stroke="none" /><circle cx="3" cy="11.5" r="0.9" fill="currentColor" stroke="none" /><path d="M6 4.5h7" /><path d="M6 8h7" /><path d="M6 11.5h7" /></I>,
-  orderedList: <I><path d="M3 2.5h1.5v2" /><path d="M2.5 4.5H5" /><path d="M3 6.5 2 8h2.5" /><path d="M6 4.5h7" /><path d="M6 8h7" /><path d="M6 11.5h7" /><path d="M3 11.5h2.5v1.5L3 14h2.5" /></I>,
+  orderedList: <I><text x="2.2" y="5.6" fontSize="4.6" fontWeight="700" fill="currentColor" stroke="none">1</text><path d="M6.5 5h6.5" /><text x="2.2" y="10.1" fontSize="4.6" fontWeight="700" fill="currentColor" stroke="none">2</text><path d="M6.5 9.5h6.5" /><text x="2.2" y="14.6" fontSize="4.6" fontWeight="700" fill="currentColor" stroke="none">3</text><path d="M6.5 14h6.5" /></I>,
   taskList: <I><rect x="2" y="3.5" width="3" height="3" rx="0.5" /><rect x="2" y="10.5" width="3" height="3" rx="0.5" /><path d="M8 5h5" /><path d="M8 12h5" /></I>,
-  blockquote: <I><path d="M3 4v3" /><path d="M3 4h3v5" /><path d="M3 13h3" /><path d="M9 5h4" /><path d="M9 8h4" /><path d="M9 11h3" /></I>,
-  codeBlock: <I><path d="M2.5 5 5.5 8l-3 3" /><path d="M8 3.5h5.5" /><path d="M13.5 12 10.5 9l3-3" /><path d="M8 13.5h2" /></I>,
+  blockquote: <I><path d="M4 3.5v9" /><path d="M7 5.5h7" /><path d="M7 9.5h5" /></I>,
+  // 代码块：复用原来的「</>」图标（原本属于行内代码）
+  codeBlock: <I><path d="M6 5 3 8l3 3" /><path d="M10 5l3 3-3 3" /></I>,
   table: <I><rect x="2" y="3" width="12" height="10" rx="1" /><path d="M2 6.5h12" /><path d="M6 3v10" /><path d="M10 3v10" /></I>,
   hr: <I><path d="M2.5 8h11" /><path d="M4.5 4.5v7" /><path d="M11.5 4.5v7" /></I>,
   link: <I><path d="M6.5 9.5 9.5 6.5" /><path d="M7.5 3.5 9 2a2.8 2.8 0 0 1 4 4l-2 2" /><path d="M8.5 12.5 7 14a2.8 2.8 0 0 1-4-4l2-2" /></I>,
@@ -200,7 +202,7 @@ export default function Toolbar({ onAction, activeFormats = {}, headingNumbering
         <ToolButton title="加粗 (⌘B)" icon={ICONS.bold} active={activeFormats.bold} onClick={() => onAction('bold')} />
         <ToolButton title="斜体 (⌘I)" icon={ICONS.italic} active={activeFormats.italic} onClick={() => onAction('italic')} />
         <ToolButton title="删除线" icon={ICONS.strikethrough} active={activeFormats.strikethrough} onClick={() => onAction('strikethrough')} />
-        <ToolButton title="行内代码" icon={ICONS.inlineCode} active={activeFormats.inlineCode} onClick={() => onAction('inlineCode')} />
+        <ToolButton title="内联代码" icon={ICONS.inlineCode} active={activeFormats.inlineCode} onClick={() => onAction('inlineCode')} />
       </div>
 
       <div className="tool-group">

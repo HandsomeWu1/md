@@ -50,6 +50,7 @@ function createWindow() {
     minWidth: 760,
     minHeight: 480,
     title: 'Margin',
+    icon: path.join(__dirname, 'assets/logo.png'),
     show: true,
     // 背景色 = 渲染层 --bg，确保 TitleBar 透明时整窗无缝衔接。
     // 跟随主题切换：构造时取一次，避免主题切换瞬间白闪。
@@ -65,6 +66,15 @@ function createWindow() {
       spellcheck: true,
     },
   });
+
+  // macOS 开发环境下把 Dock 图标也换成项目 logo（打包后的图标由构建配置决定）
+  if (process.platform === 'darwin' && app.dock) {
+    try {
+      app.dock.setIcon(path.join(__dirname, 'assets/logo.png'));
+    } catch {
+      /* 忽略：图标缺失不影响启动 */
+    }
+  }
 
   // macOS 上使用系统自带的拼写检查器（自动检测语言），无需手动调用 setSpellCheckerLanguages。
   // （setSpellCheckerLanguages 是同步方法、在 macOS 上是 no-op，之前误写成 .catch() 导致启动崩溃。）

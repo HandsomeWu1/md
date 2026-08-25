@@ -47,6 +47,13 @@ export default function App() {
   const [activeFormats, setActiveFormats] = useState({});
   // 文件操作输入弹窗：{ title, placeholder, defaultValue, onConfirm }
   const [filePrompt, setFilePrompt] = useState(null);
+  const [preview, setPreview] = useState(null); // 非 md 文件预览
+  const [toast, setToast] = useState(null);
+  useEffect(() => {
+    if (!toast) return undefined;
+    const t = setTimeout(() => setToast(null), 2600);
+    return () => clearTimeout(t);
+  }, [toast]);
   const [filePromptValue, setFilePromptValue] = useState('');
 
   const editorRef = useRef(null);
@@ -188,6 +195,30 @@ export default function App() {
     async (p) => {
       if (/\.(md|markdown|mdown|txt)$/i.test(p)) {
         await openPath(p);
+        return;
+      }
+      // 非 Markdown 文件：支持常见文本格式的预览，其余弹提示
+      const ext = p.split(/[\\/]/).pop().split('.').pop().toLowerCase();
+      const previewable = [
+        'yaml', 'yml', 'json', 'js', 'ts', 'jsx', 'tsx', 'css', 'scss',
+        'html', 'csv', 'toml', 'ini', 'conf', 'log', 'xml', 'sh', 'py', 'java', 'c', 'cpp', 'go', 'rs',
+      ];
+      if (previewable.includes(ext)) {
+        try {
+          let content = await api.readFile(p);
+          if (ext === 'json') {
+            try {
+              content = JSON.stringify(JSON.parse(content), null, 2);
+            } catch {
+              /* 非标准 JSON 直接展示原文 */
+            }
+          }
+          setPreview({ name: p.split(/[\\/]/).pop(), content, lang: ext });
+        } catch (e) {
+          setToast(`无法读取文件：${e?.message || e}`);
+        }
+      } else {
+        setToast(`暂不支持预览该文件类型：.${ext}`);
       }
     },
     [openPath]
@@ -272,6 +303,31 @@ export default function App() {
           }
         },
       });
+    },
+    [folderRoot, loadChildren]
+  );
+
+  // 拖拽：把文件移动到目标文件夹（改变其所在目录）
+  const moveFile = useCallback(
+    async (srcPath, destDir) => {
+      const name = srcPath.split(/[\\/]/).pop();
+      const dest = (destDir.endsWith('/') ? destDir : destDir + '/') + name;
+      if (srcPath === dest) return;
+      try {
+        const res = await api.rename(srcPath, dest);
+        if (res.ok) {
+          const srcDir = srcPath.replace(/[\\/][^\\/]*$/, '');
+          await loadChildren(srcDir);
+          await loadChildren(destDir);
+          if (srcDir === folderRoot || destDir === folderRoot) {
+            const treeRes = await api.listTree(folderRoot);
+            if (treeRes.ok) setFileTree(treeRes.tree || []);
+          }
+          setTabs((prev) => prev.map((t) => (t.path === srcPath ? { ...t, path: dest } : t)));
+        }
+      } catch (e) {
+        setToast(`移动失败：${e?.message || e}`);
+      }
     },
     [folderRoot, loadChildren]
   );
@@ -522,17 +578,8 @@ export default function App() {
   }, []);
 
   // ---------- 正文字号（12–32px，步进 1px，持久化） ----------
-  const changeFontSize = useCallback((delta) => {
-    setSettings((s) => {
-      const cur = s.fontSize || 13;
-      const next = Math.min(32, Math.max(12, cur + delta));
-      if (next === cur) return s;
-      api.setSettings({ fontSize: next });
-      return { ...s, fontSize: next };
-    });
-  }, []);
-
-  // 字号调整：有选区时只改选区字号（fontSize 标记）；无选区时改整篇默认字号。
+  // 字号调整：有选区时只改选区字号（fontSize 标记）；
+  // 无选区时只改「光标所在段落」的字号，而不是整篇文档。
   const applyFontSizeDelta = useCallback(
     (delta) => {
       const editor = editorRef.current?.getEditor();
@@ -541,25 +588,35 @@ export default function App() {
         const view = ctx.get(editorViewCtx);
         const { state } = view;
         const { from, to, empty } = state.selection;
-        if (empty) {
-          // 无选区：调整全局默认字号
-          changeFontSize(delta);
-          return;
-        }
         const markType = state.schema.marks.fontSize;
         if (!markType) return;
-        // 当前选区的字号（取选区起点处）：没有则回退到全局默认
         const def = settings.fontSize || 13;
+        const tr = state.tr;
+        if (empty) {
+          // 无选区：作用于光标所在块（段落）的内容范围
+          const $from = state.doc.resolve(from);
+          const depth = $from.depth;
+          const start = $from.start(depth);
+          const end = $from.end(depth);
+          if (start < end) {
+            const at = state.doc.resolve(start + 1).marks().find((m) => m.type === markType);
+            const cur = at ? Number(at.attrs.size) : def;
+            const next = Math.min(96, Math.max(8, Math.round((cur || def) + delta)));
+            if (next <= 8) tr.removeMark(start, end, markType);
+            else tr.addMark(start, end, markType.create({ size: next }));
+            view.dispatch(tr.scrollIntoView());
+          }
+          return;
+        }
         const at = state.doc.resolve(from + 1).marks().find((m) => m.type === markType);
         const cur = at ? Number(at.attrs.size) : def;
         const next = Math.min(96, Math.max(8, Math.round((cur || def) + delta)));
-        const tr = state.tr;
         if (next <= 8) tr.removeMark(from, to, markType);
         else tr.addMark(from, to, markType.create({ size: next }));
         view.dispatch(tr.scrollIntoView());
       });
     },
-    [changeFontSize, settings.fontSize]
+    [settings.fontSize]
   );
 
   // ---------- 极简模式 ----------
@@ -759,6 +816,7 @@ export default function App() {
         onDelete={deletePath}
         onRefresh={refreshTree}
         onReveal={revealPath}
+        onMoveFile={moveFile}
         rootName={folderRoot ? folderRoot.split('/').pop() : null}
       />
     ) : (
@@ -792,6 +850,18 @@ export default function App() {
         onReveal={activeTab && activeTab.path ? () => revealPath(activeTab.path) : null}
         onClose={activeTabId ? () => closeTab(activeTabId) : null}
       />
+
+      {/* 极简模式下标题栏操作被隐藏，这里放一个浮动「退出极简模式」按钮 */}
+      {settings.leanMode && (
+        <button className="lean-exit-btn" onClick={toggleLean} title="退出极简模式">
+          <svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M2 5.5V2.5h3" />
+            <path d="M2.5 5 6 1.5" />
+            <path d="M14 10.5v3h-3" />
+            <path d="M13.5 11 10 14.5" />
+          </svg>
+        </button>
+      )}
 
       <div className="app-body">
         {sidebarOpen && (
@@ -904,6 +974,22 @@ export default function App() {
         }}
         onCancel={() => setFilePrompt(null)}
       />
+
+      {/* 非 Markdown 文件预览 */}
+      {preview && (
+        <div className="modal-overlay" onClick={() => setPreview(null)}>
+          <div className="modal preview-modal" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <span className="preview-title">{preview.name}</span>
+              <button className="modal-close" onClick={() => setPreview(null)} aria-label="关闭">×</button>
+            </div>
+            <pre className="preview-content">{preview.content}</pre>
+          </div>
+        </div>
+      )}
+
+      {/* 轻量提示（如不支持的文件类型） */}
+      {toast && <div className="toast">{toast}</div>}
     </div>
   );
 }

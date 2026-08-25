@@ -1,4 +1,5 @@
 import React from 'react';
+import logo from '../assets/logo.png';
 
 export default function Welcome({
   recentFiles,
@@ -11,7 +12,7 @@ export default function Welcome({
   return (
     <div className="welcome">
       <div className="welcome-inner">
-        <h1>Margin</h1>
+        <img className="welcome-logo-img" src={logo} alt="Margin" />
         <div className="welcome-actions">
           <button type="button" onClick={onNewFile}>
             新建

@@ -11,8 +11,8 @@
   --text-muted: #9a9a9a;
   --border: #e3e3e5;
   --border-strong: #d4d4d7;
-  --accent: #4183c4;
-  --accent-hover: #3a76b4;
+  --accent: #2f3137; /* 统一为中性深色，替代原先刺眼的蓝色选中/确认态 */
+  --accent-hover: #3c3f47;
   --selection: rgba(65, 131, 196, 0.22);
   --code-bg: #f6f7f8;
   --inline-code-bg: #f0f1f2;
@@ -56,8 +56,8 @@
   --text-muted: #777777;
   --border: #3a3a3c;
   --border-strong: #454547;
-  --accent: #569cd6;
-  --accent-hover: #6ab0e8;
+  --accent: #c9ccd4; /* 深色主题 accent 改为中性浅色 */
+  --accent-hover: #dfe2ea;
   --selection: rgba(86, 156, 214, 0.3);
   --code-bg: #2a2a2b;
   --inline-code-bg: #333334;
@@ -869,12 +869,12 @@ body {
   background: var(--bg-hover);
 }
 .welcome-actions button.primary {
-  background: var(--accent);
-  border-color: var(--accent);
-  color: #fff;
+  background: var(--text);
+  border-color: var(--text);
+  color: var(--bg);
 }
 .welcome-actions button.primary:hover {
-  background: var(--accent-hover);
+  opacity: 0.85;
 }
 .welcome-recent {
   text-align: left;
@@ -1734,12 +1734,12 @@ body {
   background: var(--bg-hover);
 }
 .modal-btn.primary {
-  background: var(--accent);
-  border-color: var(--accent);
-  color: #fff;
+  background: var(--text);
+  border-color: var(--text);
+  color: var(--bg);
 }
 .modal-btn.primary:hover {
-  background: var(--accent-hover);
+  opacity: 0.85;
 }
 /* 公式弹窗里的「行内 / 独立成行」分段切换 */
 .math-mode-switch {
@@ -1960,5 +1960,87 @@ body {
 .app.lean-mode .editor-wrap {
   padding: 0 !important;
   margin: 0 !important;
+}
+
+/* ===== 首页 logo 图片 ===== */
+.welcome-logo-img {
+  height: 76px;
+  margin-bottom: 18px;
+  border-radius: 14px;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.1);
+  object-fit: contain;
+}
+
+/* ===== 极简模式：浮动退出按钮 ===== */
+.lean-exit-btn {
+  position: fixed;
+  top: 8px;
+  right: 12px;
+  z-index: 1000;
+  width: 30px;
+  height: 30px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg);
+  color: var(--text-muted);
+  cursor: pointer;
+}
+.lean-exit-btn:hover {
+  color: var(--text);
+  background: var(--bg-hover);
+}
+
+/* ===== 文件树拖拽放置目标高亮 ===== */
+.filetree-row.droptarget {
+  background: var(--bg-hover);
+  box-shadow: inset 0 0 0 1.5px var(--accent);
+}
+
+/* ===== 非 Markdown 文件预览弹窗 ===== */
+.preview-modal {
+  max-width: 720px;
+  width: 90vw;
+  max-height: 80vh;
+  display: flex;
+  flex-direction: column;
+}
+.preview-title {
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.preview-content {
+  margin: 0;
+  padding: 14px 16px;
+  overflow: auto;
+  font-family: var(--editor-font, monospace);
+  font-size: 12.5px;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  word-break: break-all;
+  color: var(--text);
+  background: var(--bg-hover);
+  border-radius: 8px;
+}
+
+/* ===== 轻量提示 toast ===== */
+.toast {
+  position: fixed;
+  left: 50%;
+  bottom: 36px;
+  transform: translateX(-50%);
+  z-index: 200;
+  padding: 9px 16px;
+  border-radius: 8px;
+  background: var(--text);
+  color: var(--bg);
+  font-size: 13px;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.25);
+  max-width: 80vw;
 }
 
