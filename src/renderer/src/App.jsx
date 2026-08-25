@@ -9,6 +9,7 @@ import SearchDialog from './components/SearchDialog';
 import Welcome from './components/Welcome';
 import InputDialog from './components/InputDialog';
 import Toolbar from './components/Toolbar';
+import CodeView from './components/CodeView';
 import Editor from './editor/Editor';
 import { extractOutline, countWords, findInMarkdown, replaceAllInMarkdown } from './utils/markdown';
 import { buildExportHtml } from './utils/export';
@@ -47,7 +48,6 @@ export default function App() {
   const [activeFormats, setActiveFormats] = useState({});
   // 文件操作输入弹窗：{ title, placeholder, defaultValue, onConfirm }
   const [filePrompt, setFilePrompt] = useState(null);
-  const [preview, setPreview] = useState(null); // 非 md 文件预览
   const [toast, setToast] = useState(null);
   useEffect(() => {
     if (!toast) return undefined;
@@ -197,7 +197,7 @@ export default function App() {
         await openPath(p);
         return;
       }
-      // 非 Markdown 文件：支持常见文本格式的预览，其余弹提示
+      // 非 Markdown 文本文件：像 md 一样开成右侧 tab（可编辑 + 轻量高亮），其余弹提示
       const ext = p.split(/[\\/]/).pop().split('.').pop().toLowerCase();
       const previewable = [
         'yaml', 'yml', 'json', 'js', 'ts', 'jsx', 'tsx', 'css', 'scss',
@@ -219,7 +219,21 @@ export default function App() {
               /* 非标准 JSON 直接展示原文 */
             }
           }
-          setPreview({ name: p.split(/[\\/]/).pop(), content, lang: ext });
+          const existing = tabsRef.current.find((t) => t.path === p);
+          if (existing) {
+            setActiveTabId(existing.id);
+            return;
+          }
+          createTab({
+            path: p,
+            name: baseName(p),
+            markdown: content || '',
+            dirty: false,
+            savedAt: new Date().toISOString(),
+            kind: 'code',
+            lang: ext,
+          });
+          addRecent(p);
         } catch (e) {
           setToast(`无法读取文件：${e?.message || e}`);
         }
@@ -431,7 +445,18 @@ export default function App() {
       if (suppressRef.current) return;
       const id = activeTabIdRef.current;
       if (!id) return;
-      updateTab(id, { markdown: md, dirty: true });
+      // 剔除空行字号用的零宽占位字符，保存到 .md 时文件保持干净
+      updateTab(id, { markdown: md.replace(/\u200B/g, ''), dirty: true });
+    },
+    [updateTab]
+  );
+
+  // 代码视图（yaml/json 等）的内容变更：直接写入 tab.markdown，复用自动保存
+  const handleCodeChange = useCallback(
+    (v) => {
+      const id = activeTabIdRef.current;
+      if (!id) return;
+      updateTab(id, { markdown: v, dirty: true });
     },
     [updateTab]
   );
@@ -600,22 +625,33 @@ export default function App() {
         const tr = state.tr;
         if (empty) {
           // 无选区：作用于光标所在块（段落）。
-          // 空行（块内无内容）时 start===end，addMark(from,from) 是空操作（ProseMirror 对折叠范围不写标记），
-          // 改用「存储标记」(stored marks)：写入后，接下来在该行输入会自动继承该字号。
+          // 空行（块内无内容，或仅含占位零宽字符）时，插入/更新一个不可见的零宽字符承载字号，
+          // 使空行即时反映出字号（光标/行高变化）；保存 .md 时会剔除该零宽字符，文件保持干净。
+          const ZWSP = '\u200B';
           const $from = state.doc.resolve(from);
           const depth = $from.depth;
           const start = $from.start(depth);
           const end = $from.end(depth);
+          const textContent = state.doc.textBetween(start, end, '');
+          const isPlaceholderLine = textContent === ZWSP;
           const probe = start === end ? from : start + 1;
           const at = state.doc.resolve(probe).marks().find((m) => m.type === markType);
           const cur = at ? Number(at.attrs.size) : def;
           const next = Math.min(96, Math.max(8, Math.round((cur || def) + delta)));
           if (next <= 8) {
             tr.removeMark(start, end, markType);
-            if (start === end) tr.setStoredMarks([]); // 空块：清除存储标记
-          } else if (start === end) {
-            // 空块：写入存储标记，输入时自动继承
-            tr.setStoredMarks([markType.create({ size: next })]);
+            tr.setStoredMarks([]);
+            if (isPlaceholderLine) tr.delete(start, end); // 删掉占位字符，恢复真正空行
+          } else if (isPlaceholderLine || start === end) {
+            // 空块：用占位零宽字符承载字号，空行即时反映大小
+            const mark = markType.create({ size: next });
+            if (isPlaceholderLine) {
+              tr.removeMark(start, end, markType);
+              tr.addMark(start, end, mark);
+            } else {
+              tr.insert(from, state.schema.text(ZWSP, [mark]));
+            }
+            tr.setStoredMarks([mark]);
           } else {
             tr.addMark(start, end, markType.create({ size: next }));
           }
@@ -903,19 +939,27 @@ export default function App() {
             />
           ) : (
             <div className="editor-wrap">
-              <Toolbar
-                onAction={runToolbarAction}
-                activeFormats={activeFormats}
-                headingNumbering={!!settings.headingNumbering}
-                onToggleHeadingNumbering={toggleHeadingNumbering}
-                fontSize={activeFormats.fontSize != null ? activeFormats.fontSize : settings.fontSize || 13}
-                onChangeFontSize={applyFontSizeDelta}
-              />
+              {activeTab.kind !== 'code' && (
+                <Toolbar
+                  onAction={runToolbarAction}
+                  activeFormats={activeFormats}
+                  headingNumbering={!!settings.headingNumbering}
+                  onToggleHeadingNumbering={toggleHeadingNumbering}
+                  fontSize={activeFormats.fontSize != null ? activeFormats.fontSize : settings.fontSize || 13}
+                  onChangeFontSize={applyFontSizeDelta}
+                />
+              )}
               <div
                 className={'editor-container' + (settings.headingNumbering ? ' heading-numbering' : '')}
                 style={{ '--editor-font-size': (settings.fontSize || 13) + 'px' }}
               >
-                {activeTab && (
+                {activeTab && activeTab.kind === 'code' ? (
+                  <CodeView
+                    key={activeTab.id}
+                    value={activeTab.markdown}
+                    onChange={handleCodeChange}
+                  />
+                ) : activeTab && (
                   <Editor
                     key={activeTab.id}
                     ref={editorRef}
@@ -985,19 +1029,6 @@ export default function App() {
         }}
         onCancel={() => setFilePrompt(null)}
       />
-
-      {/* 非 Markdown 文件预览 */}
-      {preview && (
-        <div className="modal-overlay" onClick={() => setPreview(null)}>
-          <div className="modal preview-modal" onClick={(e) => e.stopPropagation()}>
-            <div className="modal-header">
-              <span className="preview-title">{preview.name}</span>
-              <button className="modal-close" onClick={() => setPreview(null)} aria-label="关闭">×</button>
-            </div>
-            <pre className="preview-content">{preview.content}</pre>
-          </div>
-        </div>
-      )}
 
       {/* 轻量提示（如不支持的文件类型） */}
       {toast && <div className="toast">{toast}</div>}

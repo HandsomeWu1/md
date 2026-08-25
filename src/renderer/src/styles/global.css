@@ -1412,6 +1412,58 @@ body {
   font-style: italic;
 }
 
+/* ===== 代码视图（yaml/json 等文本文件在右侧直接显示，可编辑 + 轻量高亮） ===== */
+.code-view {
+  position: relative;
+  height: 100%;
+  min-height: 0;
+  box-sizing: border-box;
+}
+/* 高亮层与输入框共用完全相同的字号/行高/内边距，保证逐字对齐 */
+.code-view .code-highlight,
+.code-view .code-input {
+  margin: 0;
+  border: 0;
+  padding: 24px 36px 45vh;
+  font-family: var(--mono-font);
+  font-size: var(--editor-font-size, 13px);
+  line-height: 1.7;
+  tab-size: 2;
+  white-space: pre-wrap;
+  word-break: break-word;
+  box-sizing: border-box;
+  width: 100%;
+  height: 100%;
+  overflow: auto;
+}
+.code-view .code-highlight {
+  position: absolute;
+  inset: 0;
+  color: var(--text);
+  pointer-events: none;
+  z-index: 1;
+}
+.code-view .code-input {
+  position: absolute;
+  inset: 0;
+  background: transparent;
+  color: transparent;
+  caret-color: var(--accent);
+  resize: none;
+  outline: none;
+  z-index: 2;
+}
+.code-view .code-input::selection {
+  background: var(--selection);
+}
+/* 轻量分词配色，复用既有 --tok-* 变量（亮/暗主题均已定义） */
+.code-view .cv-comment { color: var(--tok-comment); font-style: italic; }
+.code-view .cv-string  { color: var(--tok-string); }
+.code-view .cv-number  { color: var(--tok-number); }
+.code-view .cv-boolean { color: var(--tok-boolean); }
+.code-view .cv-key     { color: var(--tok-keyword); }
+.code-view .cv-punct   { color: var(--tok-punctuation); }
+
 /* ===== 数学公式（KaTeX） ===== */
 .editor-container .milkdown [data-type='math_inline'] {
   display: inline-block;
