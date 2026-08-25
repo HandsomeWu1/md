@@ -205,7 +205,13 @@ export default function App() {
       ];
       if (previewable.includes(ext)) {
         try {
-          let content = await api.readFile(p);
+          // api.readFile 经 IPC safe() 包装，返回 { ok, content }，需取 .content
+          const res = await api.readFile(p);
+          if (!res || res.ok === false) {
+            setToast(`无法读取文件：${res?.error || '未知错误'}`);
+            return;
+          }
+          let content = res.content;
           if (ext === 'json') {
             try {
               content = JSON.stringify(JSON.parse(content), null, 2);
@@ -593,19 +599,20 @@ export default function App() {
         const def = settings.fontSize || 13;
         const tr = state.tr;
         if (empty) {
-          // 无选区：作用于光标所在块（段落）的内容范围
+          // 无选区：作用于光标所在块（段落）。
+          // 空行（块内无内容）时 start===end，addMark 在折叠处会写入「存储标记」，
+          // 后续输入自动继承该字号；非空行则整段套用。
           const $from = state.doc.resolve(from);
           const depth = $from.depth;
           const start = $from.start(depth);
           const end = $from.end(depth);
-          if (start < end) {
-            const at = state.doc.resolve(start + 1).marks().find((m) => m.type === markType);
-            const cur = at ? Number(at.attrs.size) : def;
-            const next = Math.min(96, Math.max(8, Math.round((cur || def) + delta)));
-            if (next <= 8) tr.removeMark(start, end, markType);
-            else tr.addMark(start, end, markType.create({ size: next }));
-            view.dispatch(tr.scrollIntoView());
-          }
+          const probe = start === end ? from : start + 1;
+          const at = state.doc.resolve(probe).marks().find((m) => m.type === markType);
+          const cur = at ? Number(at.attrs.size) : def;
+          const next = Math.min(96, Math.max(8, Math.round((cur || def) + delta)));
+          if (next <= 8) tr.removeMark(start, end, markType);
+          else tr.addMark(start, end, markType.create({ size: next }));
+          view.dispatch(tr.scrollIntoView());
           return;
         }
         const at = state.doc.resolve(from + 1).marks().find((m) => m.type === markType);
@@ -854,11 +861,8 @@ export default function App() {
       {/* 极简模式下标题栏操作被隐藏，这里放一个浮动「退出极简模式」按钮 */}
       {settings.leanMode && (
         <button className="lean-exit-btn" onClick={toggleLean} title="退出极简模式">
-          <svg viewBox="0 0 16 16" width="16" height="16" fill="none" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M2 5.5V2.5h3" />
-            <path d="M2.5 5 6 1.5" />
-            <path d="M14 10.5v3h-3" />
-            <path d="M13.5 11 10 14.5" />
+          <svg viewBox="0 0 16 16" width="13" height="13" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M2 3h12M2 8h12M2 13h12" />
           </svg>
         </button>
       )}
