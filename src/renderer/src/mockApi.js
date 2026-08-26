@@ -76,21 +76,30 @@ export function installMockApi() {
       return { ok: true };
     },
     aiChat: async ({ requestId, messages }) => {
-      // 取最后一条用户消息作为「问题」来源；识别改写模式以返回可用于验证的结果。
-      const lastUser = [...(messages || [])].reverse().find((m) => m.role === 'user');
+      const list = messages || [];
+      const lastUser = [...list].reverse().find((m) => m.role === 'user');
       const userText = (lastUser && lastUser.content) || '';
-      const isRewrite = userText.includes('[改写模式]') ||
-        (messages || []).some((m) => m.role === 'system' && /只输出改写后/.test(m.content || ''));
+      const systemText = list.filter((m) => m.role === 'system').map((m) => m.content || '').join('\n');
 
-      const normalReply = '这是一段用于验证 UI 的模拟回复。AI 对话功能已在主进程侧链路完成接入，' +
-        '渲染层通过 onAiChunk 接收流式增量并实时渲染到对话气泡中。';
+      // 模拟真实模型的意图判断：只有出现明确的修改类要求才走改写，
+      // 「你好」这类寒暄一律当对话（这正是合并模式后必须保证的行为）。
+      const wantsRewrite =
+        /改写|改简洁|精简|简化|扩写|翻译|润色|修正|改成|加个|补充|重写|优化一下|改一下|改下/.test(userText);
+      const rewriteForbidden = /不支持改写/.test(systemText);
+      const onlySelection = /只改写这段选中内容/.test(systemText);
 
-      // 改写模式：基于原文做**局部**改动（改一段 + 追加一段），
+      const chatReply = '这是一段用于验证 UI 的模拟回复。当前问题不涉及修改文档，因此以对话方式回答，' +
+        '文档内容不会被改动。';
+
+      // 改写：基于原文做**局部**改动（改一段 + 追加一段），
       // 这样正文里的差异标注（修改/新增）才有真实可验证的效果。
       const buildRewrite = () => {
-        const m = /以下是需要改写的 Markdown [^：]*：\n\n([\s\S]*)$/.exec(userText);
-        const source = m ? m[1].trim() : '';
+        const src = onlySelection
+          ? /用户当前选中了以下片段：\n\n([\s\S]*?)\n\n若判断需要改写/.exec(systemText)
+          : /当前文档的完整内容：\n\n([\s\S]*?)\n\n若判断需要改写/.exec(systemText);
+        const source = src ? src[1].trim() : '';
         if (!source) return '# 改写后的文档\n\n这是模拟改写返回的内容。';
+        if (onlySelection) return '【已改写】' + source;
         const blocks = source.split(/\n{2,}/);
         const idx = blocks.length > 1 ? 1 : 0;
         blocks[idx] = '【已精简】' + blocks[idx];
@@ -98,7 +107,9 @@ export function installMockApi() {
         return blocks.join('\n\n');
       };
 
-      const full = isRewrite ? buildRewrite() : normalReply;
+      const isRewrite = wantsRewrite && !rewriteForbidden;
+      // 改写回复必须带上协议标记，与真实模型的输出格式保持一致。
+      const full = isRewrite ? `%%REWRITE%%\n${buildRewrite()}` : chatReply;
       let content = '';
       // 按 6~10 字符切片模拟流式，每片延时让渲染层能看到渐进效果。
       let i = 0;

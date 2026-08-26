@@ -2364,36 +2364,24 @@ body {
   gap: 8px;
   margin-top: 7px;
 }
-.ai-mode {
-  display: inline-flex;
-  gap: 2px;
-}
-.ai-mode button {
-  padding: 3px 9px;
-  border: none;
-  background: transparent;
-  color: var(--text-muted);
-  border-radius: 5px;
-  font-size: 12px;
-  cursor: pointer;
-  transition: background 0.12s ease, color 0.12s ease;
-}
-.ai-mode button:hover:not(:disabled) {
-  color: var(--text);
-  background: var(--bg-hover);
-}
-.ai-mode button.active {
-  color: var(--text);
-  font-weight: 600;
-  background: var(--bg-hover);
-}
-.ai-mode button:disabled {
-  opacity: 0.4;
-  cursor: default;
-}
 .ai-scope {
   font-size: 11px;
   color: var(--text-muted);
+}
+/* 无选区时这一行只是快捷键提示，压得更淡以免和「仅改写选中」的实义提示混淆 */
+.ai-scope-muted {
+  opacity: 0.7;
+}
+/* 意图判定完成前的等待态：省略号轮播，避免先渲染出半个协议标记 */
+.ai-thinking::after {
+  content: '…';
+  animation: ai-thinking-dots 1.2s steps(4, end) infinite;
+}
+@keyframes ai-thinking-dots {
+  0% { content: ''; }
+  25% { content: '.'; }
+  50% { content: '..'; }
+  75% { content: '...'; }
 }
 .ai-send {
   display: inline-flex;

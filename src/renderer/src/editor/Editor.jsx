@@ -196,7 +196,19 @@ const InnerEditor = forwardRef(function InnerEditor({ initialValue, onChange, on
             const parser = ctx.get(parserCtx);
             const doc = parser(md || '');
             if (!doc) return;
-            view.dispatch(state.tr.replaceWith(range.from, range.to, doc.content).scrollIntoView());
+
+            // 插入粒度要与选区所处的层级匹配，否则会撑出多余的空段落：
+            // 选区完全落在同一个文本块内（最常见：选中一段话里的若干字，或三击选整段）
+            // 且改写结果只有一个文本块时，只插入其 inline 内容；
+            // 否则（跨块选区、或结果含多个块）才按块替换。
+            const $from = state.doc.resolve(range.from);
+            const $to = state.doc.resolve(range.to);
+            const inSameTextblock = $from.sameParent($to) && $from.parent.isTextblock;
+            const singleTextblockResult = doc.childCount === 1 && doc.firstChild.isTextblock;
+            const content =
+              inSameTextblock && singleTextblockResult ? doc.firstChild.content : doc.content;
+
+            view.dispatch(state.tr.replaceWith(range.from, range.to, content).scrollIntoView());
             written = true;
           });
         } else {

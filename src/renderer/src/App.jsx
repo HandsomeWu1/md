@@ -620,6 +620,10 @@ export default function App() {
 
   const aiGetTabId = useCallback(() => activeTabIdRef.current, []);
   const aiGetMaxChars = useCallback(() => settingsRef.current.aiMaxContextChars || 60000, []);
+  const aiGetCanRewrite = useCallback(() => {
+    const t = tabsRef.current.find((x) => x.id === activeTabIdRef.current);
+    return !!t && t.kind !== 'code';
+  }, []);
 
   /**
    * 把 AI 改写结果写入文档，并在正文里标注改动位置。
@@ -663,6 +667,7 @@ export default function App() {
     getDocument: aiGetDocument,
     getSelection: aiGetSelection,
     getMaxChars: aiGetMaxChars,
+    getCanRewrite: aiGetCanRewrite,
     applyRewrite: applyAiRewrite,
     aliveTabIds: tabs.map((t) => t.id),
   });
@@ -1114,7 +1119,6 @@ export default function App() {
             onSend={ai.send}
             onStop={ai.stop}
             onInputChange={ai.setInput}
-            onModeChange={ai.setMode}
             onClear={ai.clear}
             getSelection={aiGetSelection}
             onOpenSettings={() => setAiSettingsOpen(true)}
