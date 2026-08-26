@@ -1,4 +1,4 @@
-# Margin
+# Margin-AI
 
 极简的所见即所得（WYSIWYG）Markdown 桌面编辑器，面向 **macOS Apple Silicon（M 系列芯片）**。本项目为**原创实现**，使用开源 Markdown 编辑框架 Milkdown，不包含任何第三方编辑器的私有代码、资源或商标。
 
@@ -35,19 +35,27 @@
 - **Typewriter 模式**：`Cmd+Shift+T`，光标始终保持在视口垂直居中。
 - **拼写检查**：英文拼写检查（macOS 原生词典）。
 
+### AI 助手（右侧面板）
+- **入口**：标题栏右侧的对话气泡按钮，或菜单「视图 → 切换 AI 面板」（`Cmd+Shift+3`）。极简模式下自动隐藏。
+- **对话模式**：把当前文档作为只读上下文提问，流式输出，可随时点按钮停止生成。
+- **改写模式**：让 AI 改写文档。**有选区时只改选中片段**，没有选区则改整篇。
+- **改写结果需确认**：AI 输出先在面板里预览，点「应用到文档」才写入编辑器；写入是单个编辑事务，按一次 `Cmd+Z` 即可整体撤销。
+- **配置**：面板右上齿轮 → 填写 API 地址、API Key、模型名、温度。仅支持 **OpenAI 兼容的 `/chat/completions`** 接口（OpenAI、DeepSeek、Kimi、通义、OpenRouter、vLLM、Ollama 等均可）。地址填到 `/v1` 即可，也接受完整端点。
+- **实现要点**：请求由**主进程**发起 —— 渲染层 CSP 的 `connect-src` 不开放任意外部地址，这样既不放宽 CSP、又避开 CORS，且 API Key 不进入渲染进程。密钥以明文保存在本机 `settings.json`（用户自用定位）。AI 回复渲染关闭 raw HTML，防止模型输出造成 XSS。
+
 ## 技术栈
 
 - **Electron**（主进程 / preload / 打包）
 - **Milkdown v7** + React（`@milkdown/kit`、`@milkdown/react`、`@milkdown/theme-nord`）—— 所见即所得编辑器
 - **插件**：`@milkdown/plugin-prism`（代码高亮）、`@milkdown/plugin-math`（KaTeX）、`@milkdown/plugin-emoji`、`@milkdown/plugin-upload`（图片）、`@milkdown/plugin-slash`（斜杠命令）
-- **markdown-it** —— 导出 HTML/PDF 的渲染
+- **markdown-it** —— 导出 HTML/PDF 与 AI 回复的渲染
 - **Vite** —— 渲染层构建
 - **electron-builder** —— 打包 `.dmg` / `.zip`
 
 ## 目录结构
 
 ```
-typora-dev/
+Margin/
 ├── package.json
 ├── electron-builder.yml        # 打包配置（mac arm64）
 ├── vite.config.mjs             # 渲染层构建配置
@@ -65,6 +73,7 @@ typora-dev/
     │   ├── ipc.js              # IPC 处理器
     │   ├── file-service.js     # 文件读写 + 授权模型
     │   ├── export-service.js   # HTML/PDF 导出
+    │   ├── ai-service.js       # AI 请求（OpenAI 兼容 + SSE 流式 + 取消）
     │   └── store.js            # 设置/最近文件持久化
     ├── preload/index.js        # contextBridge 白名单 API
     └── renderer/               # React 渲染层
@@ -94,12 +103,12 @@ typora-dev/
 ## 构建（macOS arm64）
 
 ```bash
-cd typora-dev
+cd Margin
 npm install
 npm run dist:mac-arm64
 ```
 
-产物输出到 `release/`：`Margin-0.1.0-arm64.dmg` 与 `-arm64-mac.zip`。
+产物输出到 `release/`：`Margin-AI-0.1.0-arm64.dmg` 与 `-arm64-mac.zip`。
 
 也可以直接用脚本：
 
@@ -135,7 +144,7 @@ npm run dev
 
 ## 已知限制与后续规划
 
-- 未签名构建首次打开可能触发 Gatekeeper 提示，本机构建一般可正常运行；如遇「已损坏」，执行 `xattr -cr /Applications/Margin.app`。
+- 未签名构建首次打开可能触发 Gatekeeper 提示，本机构建一般可正常运行；如遇「已损坏」，执行 `xattr -cr /Applications/Margin-AI.app`。
 - 查找匹配当前在文档源码层计数与替换，暂未在编辑器内做高亮滚动。
 - 标签切换会重建编辑器实例，跨标签的撤销历史不保留。
 - Mermaid 图表以代码块下方的 SVG 预览呈现，代码块本身可继续编辑（非专用图形节点）。

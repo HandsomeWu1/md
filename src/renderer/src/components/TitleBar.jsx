@@ -12,10 +12,12 @@ export default function TitleBar({
   hasDocument, // 是否有打开的文档/标签页；无文档时只显示 app 名，不渲染下拉菜单
   sidebarOpen,
   outlineOpen,
+  aiOpen,
   theme,
   leanMode,
   onToggleSidebar,
   onToggleOutline,
+  onToggleAi,
   onToggleTheme,
   onToggleLean,
   // 文件级操作
@@ -93,6 +95,19 @@ export default function TitleBar({
           <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6">
             <rect x="2" y="2.5" width="12" height="11" rx="1.5" />
             <line x1="6" y1="2.5" x2="6" y2="13.5" />
+          </svg>
+        </button>
+        <button
+          type="button"
+          className={'tb-btn' + (aiOpen ? ' active' : '')}
+          onClick={onToggleAi}
+          title="AI 助手"
+          aria-label="切换 AI 面板"
+        >
+          {/* 对话气泡 + 一颗微光点：不用彩色，与其余图标同为线性中性风格 */}
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M13.5 8.5a4.6 4.6 0 0 1-4.6 4.6H6.2L3 14.6V8.5a4.6 4.6 0 0 1 4.6-4.6h1.3a4.6 4.6 0 0 1 4.6 4.6z" />
+            <path d="M11.4 1.4l.5 1.2 1.2.5-1.2.5-.5 1.2-.5-1.2-1.2-.5 1.2-.5z" />
           </svg>
         </button>
         <button

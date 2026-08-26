@@ -9,6 +9,14 @@ const DEFAULTS = {
   headingNumbering: false,
   leanMode: false,
   fontSize: 13,
+
+  // AI 对话配置：baseUrl / apiKey / model 在设置弹窗里由用户填写，
+  // temperature 控制发散程度，maxContextChars 限制拼进请求的历史长度，避免超长上下文。
+  aiBaseUrl: '',
+  aiApiKey: '',
+  aiModel: '',
+  aiTemperature: 0.3,
+  aiMaxContextChars: 60000,
 };
 
 class SettingsStore {

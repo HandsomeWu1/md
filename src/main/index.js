@@ -49,7 +49,7 @@ function createWindow() {
     height: 840,
     minWidth: 760,
     minHeight: 480,
-    title: 'Margin',
+    title: 'Margin-AI',
     icon: path.join(__dirname, 'assets/logo.png'),
     show: true,
     // 背景色 = 渲染层 --bg，确保 TitleBar 透明时整窗无缝衔接。

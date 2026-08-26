@@ -2,7 +2,7 @@ import React, { forwardRef, useCallback, useEffect, useImperativeHandle, useRef,
 import { Milkdown, MilkdownProvider, useEditor } from '@milkdown/react';
 import { createMilkdown } from './createMilkdown';
 import { getMarkdown as getMarkdownAction, replaceAll as replaceAllAction } from '@milkdown/kit/utils';
-import { editorViewCtx } from '@milkdown/kit/core';
+import { editorViewCtx, serializerCtx, parserCtx } from '@milkdown/kit/core';
 import { undo, redo } from '@milkdown/kit/prose/history';
 import { TextSelection } from '@milkdown/prose/state';
 import { getActiveFormats } from './selection';
@@ -111,6 +111,51 @@ const InnerEditor = forwardRef(function InnerEditor({ initialValue, onChange, on
       setMarkdown: (md) => {
         const ed = getRef.current();
         if (ed) ed.action(replaceAllAction(md || ''));
+      },
+      // 读取当前选区的 Markdown 源码，供 AI 只改写选中片段。
+      // 选区跨越块边界时 slice 的 openStart/openEnd 不为 0，直接塞进 topNode 可能
+      // 构造出非法文档，因此序列化失败时退回纯文本，保证功能不中断。
+      getSelectionMarkdown: () => {
+        const ed = getRef.current();
+        if (!ed) return { empty: true, text: '' };
+        let out = { empty: true, text: '' };
+        ed.action((ctx) => {
+          const view = ctx.get(editorViewCtx);
+          if (!view) return;
+          const { state } = view;
+          const { from, to, empty } = state.selection;
+          if (empty || from === to) return;
+          let text = '';
+          try {
+            const serializer = ctx.get(serializerCtx);
+            const slice = state.doc.slice(from, to);
+            text = serializer(state.schema.topNodeType.create(null, slice.content));
+          } catch {
+            text = state.doc.textBetween(from, to, '\n\n');
+          }
+          out = { empty: false, text: (text || '').trim(), from, to };
+        });
+        return out;
+      },
+      // 用 Markdown 文本替换当前选区。整个替换是**单个 ProseMirror 事务**，
+      // 因此 AI 改写后按一次 Cmd+Z 即可整体回退。
+      replaceSelectionMarkdown: (md) => {
+        const ed = getRef.current();
+        if (!ed) return false;
+        let done = false;
+        ed.action((ctx) => {
+          const view = ctx.get(editorViewCtx);
+          if (!view) return;
+          const { state } = view;
+          const { from, to, empty } = state.selection;
+          if (empty || from === to) return;
+          const parser = ctx.get(parserCtx);
+          const doc = parser(md || '');
+          if (!doc) return;
+          view.dispatch(state.tr.replaceWith(from, to, doc.content).scrollIntoView());
+          done = true;
+        });
+        return done;
       },
       undo: () => runWithView(getRef.current(), (view) => undo(view.state, view.dispatch)),
       redo: () => runWithView(getRef.current(), (view) => redo(view.state, view.dispatch)),

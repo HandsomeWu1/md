@@ -15,19 +15,19 @@ function buildMenu(getWindow) {
     ...(isMac
       ? [
           {
-            label: 'Margin',
+            label: 'Margin-AI',
             submenu: [
-              { role: 'about', label: '关于 Margin' },
+              { role: 'about', label: '关于 Margin-AI' },
               { type: 'separator' },
               { label: '偏好设置…', accelerator: 'Cmd+,', click: () => send('app:preferences') },
               { type: 'separator' },
               { role: 'services', label: '服务' },
               { type: 'separator' },
-              { role: 'hide', label: '隐藏 Margin' },
+              { role: 'hide', label: '隐藏 Margin-AI' },
               { role: 'hideOthers', label: '隐藏其他' },
               { role: 'unhide', label: '全部显示' },
               { type: 'separator' },
-              { role: 'quit', label: '退出 Margin' },
+              { role: 'quit', label: '退出 Margin-AI' },
             ],
           },
         ]
@@ -69,6 +69,7 @@ function buildMenu(getWindow) {
       submenu: [
         { label: '切换侧栏', accelerator: 'CmdOrCtrl+Shift+1', click: () => send('view:toggle-sidebar') },
         { label: '切换大纲', accelerator: 'CmdOrCtrl+Shift+2', click: () => send('view:toggle-outline') },
+        { label: '切换 AI 面板', accelerator: 'CmdOrCtrl+Shift+3', click: () => send('view:toggle-ai') },
         { label: '切换主题', accelerator: 'CmdOrCtrl+Shift+L', click: () => send('view:toggle-theme') },
         { type: 'separator' },
         { label: 'Focus 模式', accelerator: 'CmdOrCtrl+Shift+F', click: () => send('view:toggle-focus') },
@@ -88,7 +89,7 @@ function buildMenu(getWindow) {
     {
       role: 'help',
       label: '帮助',
-      submenu: [{ label: '关于 Margin', click: () => send('app:about') }],
+      submenu: [{ label: '关于 Margin-AI', click: () => send('app:about') }],
     },
   ];
 

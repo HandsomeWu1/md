@@ -10,6 +10,8 @@ import Welcome from './components/Welcome';
 import InputDialog from './components/InputDialog';
 import Toolbar from './components/Toolbar';
 import CodeView from './components/CodeView';
+import AiPanel from './components/AiPanel';
+import AiSettingsDialog from './components/AiSettingsDialog';
 import Editor from './editor/Editor';
 import { extractOutline, countWords, findInMarkdown, replaceAllInMarkdown } from './utils/markdown';
 import { buildExportHtml } from './utils/export';
@@ -29,6 +31,8 @@ export default function App() {
   const [activeTabId, setActiveTabId] = useState(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [sidebarMode, setSidebarMode] = useState('files');
+  const [aiOpen, setAiOpen] = useState(false);
+  const [aiSettingsOpen, setAiSettingsOpen] = useState(false);
   const [folderRoot, setFolderRoot] = useState(null);
   const [fileTree, setFileTree] = useState([]);
   const [childrenMap, setChildrenMap] = useState({});
@@ -520,7 +524,7 @@ export default function App() {
 
   // ---------- 窗口标题 / 未保存标记 ----------
   useEffect(() => {
-    const title = activeTab ? `${activeTab.name}${activeTab.dirty ? ' ●' : ''} - Margin` : 'Margin';
+    const title = activeTab ? `${activeTab.name}${activeTab.dirty ? ' ●' : ''} - Margin-AI` : 'Margin-AI';
     api.setWindowTitle(title);
     api.setDocumentEdited(!!(activeTab && activeTab.dirty));
   }, [activeTab?.name, activeTab?.dirty]);
@@ -590,6 +594,56 @@ export default function App() {
   // 用 ref 镜像 search，供 doReplace 读取最新值
   const searchRef = useRef(search);
   searchRef.current = search;
+
+  // ---------- AI 面板 ----------
+  // 三个回调都用 refs 读取最新状态并保持引用稳定：AiPanel 会把 getSelection
+  // 注册到 selectionchange 监听上，函数引用每次渲染都变会导致反复解绑重绑。
+  const aiGetDocument = useCallback(() => {
+    const t = tabsRef.current.find((x) => x.id === activeTabIdRef.current);
+    return t ? t.markdown || '' : '';
+  }, []);
+
+  const aiGetSelection = useCallback(() => {
+    const t = tabsRef.current.find((x) => x.id === activeTabIdRef.current);
+    // 代码视图没有 Milkdown 实例，取不到结构化选区。
+    if (!t || t.kind === 'code') return { empty: true, text: '' };
+    return editorRef.current?.getSelectionMarkdown() || { empty: true, text: '' };
+  }, []);
+
+  /**
+   * 把 AI 改写结果写入文档。返回是否成功。
+   * - 原请求基于选区：只替换选区（单事务，⌘Z 可整体撤销）。若用户此后已改变选择
+   *   则替换会失败，返回 false 让面板提示重试，绝不退化成整篇覆盖。
+   * - 原请求基于整篇：整篇替换，沿用 doReplace 已验证的 suppress + setMarkdown 模式。
+   */
+  const applyAiRewrite = useCallback(
+    (text, wasSelection) => {
+      const t = tabsRef.current.find((x) => x.id === activeTabIdRef.current);
+      if (!t) return false;
+      if (t.kind === 'code') {
+        setToast('代码视图暂不支持 AI 改写');
+        return false;
+      }
+      if (wasSelection) {
+        // 不设 suppressRef：让编辑器的 markdown listener 正常回写 tab 内容与 dirty 标记。
+        return !!editorRef.current?.replaceSelectionMarkdown(text);
+      }
+      suppressRef.current = true;
+      editorRef.current?.setMarkdown(text);
+      suppressRef.current = false;
+      updateTab(t.id, { markdown: text, dirty: true });
+      return true;
+    },
+    [updateTab]
+  );
+
+  const saveAiSettings = useCallback((patch) => {
+    setSettings((s) => ({ ...s, ...patch }));
+    api.setSettings(patch);
+    setAiSettingsOpen(false);
+  }, []);
+
+  const aiConfigured = !!(settings.aiBaseUrl && settings.aiModel && settings.aiApiKey);
 
   // ---------- 主题 ----------
   const toggleTheme = useCallback(() => {
@@ -739,6 +793,7 @@ export default function App() {
           runSearch(searchRef.current.query, searchRef.current.caseSensitive);
           break;
         case 'view:toggle-sidebar': setSidebarOpen((v) => !v); break;
+        case 'view:toggle-ai': setAiOpen((v) => !v); break;
         case 'view:toggle-outline':
           setSidebarOpen(true);
           setSidebarMode((m) => (m === 'outline' ? 'files' : 'outline'));
@@ -747,7 +802,7 @@ export default function App() {
         case 'view:toggle-focus': toggleFocusMode(); break;
         case 'view:toggle-typewriter': toggleTypewriterMode(); break;
         case 'app:about':
-          window.alert('Margin v0.1.0\n极简的所见即所得 Markdown 编辑器（macOS Apple Silicon）');
+          window.alert('Margin-AI v0.1.0\n极简的所见即所得 Markdown 编辑器（macOS Apple Silicon）');
           break;
         case 'app:preferences': toggleTheme(); break;
         default: break;
@@ -881,13 +936,15 @@ export default function App() {
   return (
     <div className={'app' + (settings.leanMode ? ' lean-mode' : '')}>
       <TitleBar
-        title={activeTab ? activeTab.name : 'Margin'}
+        title={activeTab ? activeTab.name : 'Margin-AI'}
         hasDocument={!!activeTab}
         sidebarOpen={sidebarOpen}
         outlineOpen={sidebarMode === 'outline' && sidebarOpen}
+        aiOpen={aiOpen}
         theme={theme}
         leanMode={!!settings.leanMode}
         onToggleSidebar={() => setSidebarOpen((v) => !v)}
+        onToggleAi={() => setAiOpen((v) => !v)}
         onToggleOutline={() => {
           setSidebarOpen(true);
           setSidebarMode((m) => (m === 'outline' ? 'files' : 'outline'));
@@ -979,7 +1036,28 @@ export default function App() {
             savedAt={activeTab?.savedAt}
           />
         </div>
+
+        {/* AI 面板：极简模式下与其它 chrome 一同隐藏，保持纯净写作视图 */}
+        {aiOpen && !settings.leanMode && (
+          <AiPanel
+            configured={aiConfigured}
+            canRewrite={!!activeTab && activeTab.kind !== 'code'}
+            maxContextChars={settings.aiMaxContextChars || 60000}
+            getDocument={aiGetDocument}
+            getSelection={aiGetSelection}
+            onApply={applyAiRewrite}
+            onOpenSettings={() => setAiSettingsOpen(true)}
+            onClose={() => setAiOpen(false)}
+          />
+        )}
       </div>
+
+      <AiSettingsDialog
+        open={aiSettingsOpen}
+        settings={settings}
+        onSave={saveAiSettings}
+        onCancel={() => setAiSettingsOpen(false)}
+      />
 
       <SearchDialog
         open={search.open}

@@ -12,7 +12,7 @@ export default function Welcome({
   return (
     <div className="welcome">
       <div className="welcome-inner">
-        <img className="welcome-logo-img" src={logo} alt="Margin" />
+        <img className="welcome-logo-img" src={logo} alt="Margin-AI" />
         <div className="welcome-actions">
           <button type="button" onClick={onNewFile}>
             新建
