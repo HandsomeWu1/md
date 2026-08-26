@@ -23,6 +23,7 @@ import { slash, configureSlash } from './slashMenu';
 import { taskListToggle } from './taskListToggle';
 import { tableSignal } from './tableSignal';
 import { searchHighlight } from './searchHighlight';
+import { diffHighlight } from './diffHighlight';
 import { codeBlockLanguage } from './codeBlockLanguage';
 import { codeBlockBackspace } from './codeBlockBackspace';
 import { headingBackspace } from './headingBackspace';
@@ -160,6 +161,7 @@ export function createMilkdown(root, { defaultValue = '', onMarkdownUpdated, onS
     .use(taskListToggle)
     .use(tableSignal)
     .use(searchHighlight)
+    .use(diffHighlight)
     .use(codeBlockLanguage)
     .use(codeBlockBackspace)
     .use(headingBackspace)

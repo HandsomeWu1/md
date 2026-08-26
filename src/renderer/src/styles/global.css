@@ -28,6 +28,11 @@
   --titlebar-bg: transparent;   /* 透明背景，与下方编辑区无缝衔接 */
   --find-match: #ffe873;
   --find-match-current: #ffb454; /* 当前匹配项（替换掉刺眼的蓝色） */
+  --diff-added-bg: rgba(46, 160, 67, 0.07);
+  --diff-added-border: rgba(46, 160, 67, 0.5);
+  --diff-changed-bg: rgba(191, 135, 0, 0.08);
+  --diff-changed-border: rgba(191, 135, 0, 0.5);
+  --diff-removed: rgba(207, 34, 46, 0.55);
   --shadow: 0 6px 24px rgba(0, 0, 0, 0.12);
   --editor-font: -apple-system, BlinkMacSystemFont, "SF Pro Text", "PingFang SC", "Hiragino Sans GB", "Helvetica Neue", "Microsoft YaHei", sans-serif;
   --mono-font: "SF Mono", "JetBrains Mono", Menlo, Consolas, "Liberation Mono", monospace;
@@ -73,6 +78,11 @@
   --titlebar-bg: transparent;   /* dark 模式也透明 */
   --find-match: #6a5d00;
   --find-match-current: #f08c00; /* 深色主题当前匹配项 */
+  --diff-added-bg: rgba(63, 185, 80, 0.07);
+  --diff-added-border: rgba(63, 185, 80, 0.45);
+  --diff-changed-bg: rgba(227, 179, 65, 0.07);
+  --diff-changed-border: rgba(227, 179, 65, 0.45);
+  --diff-removed: rgba(248, 81, 73, 0.6);
   --shadow: 0 6px 24px rgba(0, 0, 0, 0.5);
   --tok-comment: #6a9955;
   --tok-keyword: #569cd6;
@@ -2279,26 +2289,6 @@ body {
   padding: 3px 7px;
 }
 
-/* 改写结果预览 */
-.ai-rewrite-preview {
-  margin: 0;
-  padding: 9px 11px;
-  max-height: 260px;
-  overflow: auto;
-  background: var(--code-bg);
-  border-radius: 6px;
-  font-family: var(--mono-font);
-  font-size: 11.5px;
-  line-height: 1.6;
-  color: var(--text-secondary);
-  white-space: pre-wrap;
-  word-break: break-word;
-}
-.ai-actions {
-  display: flex;
-  gap: 6px;
-  margin-top: 8px;
-}
 .ai-btn {
   padding: 4px 11px;
   border: 1px solid var(--border);
@@ -2456,4 +2446,87 @@ body {
   font-size: 11.5px;
   line-height: 1.6;
   color: var(--text-muted);
+}
+
+/* ===== AI 改动标注（正文内） =====
+   语义色仅用于「新增/修改/删除」这类必须区分的信息，强度压到最低：
+   淡背景 + 一条左侧细边，不改变文字颜色，避免干扰阅读。 */
+.editor-container .milkdown .ai-diff-added,
+.editor-container .milkdown .ai-diff-changed {
+  position: relative;
+  border-radius: 3px;
+  /* 用负外边距 + 内边距把底色向外扩一点，使块级高亮不至于紧贴文字 */
+  margin-left: -12px;
+  padding-left: 9px;
+  border-left: 3px solid transparent;
+}
+.editor-container .milkdown .ai-diff-added {
+  background: var(--diff-added-bg);
+  border-left-color: var(--diff-added-border);
+}
+.editor-container .milkdown .ai-diff-changed {
+  background: var(--diff-changed-bg);
+  border-left-color: var(--diff-changed-border);
+}
+/* 删除标记：正文里没有对应内容，用一个细小的三角提示「此处删除过内容」 */
+.ai-diff-removed-mark {
+  display: inline-block;
+  width: 0;
+  height: 0;
+  vertical-align: middle;
+  border-left: 5px solid var(--diff-removed);
+  border-top: 4px solid transparent;
+  border-bottom: 4px solid transparent;
+  margin-right: 2px;
+  cursor: help;
+}
+
+/* ===== AI 改动确认条 ===== */
+.diff-bar {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 14px;
+  background: var(--bg);
+  border-bottom: 1px solid var(--border);
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+.diff-bar-text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.diff-bar-btn {
+  flex: 0 0 auto;
+  padding: 3px 11px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--text);
+  border-radius: 6px;
+  font-size: 12px;
+  cursor: pointer;
+  transition: background 0.1s ease;
+}
+.diff-bar-btn:hover {
+  background: var(--bg-hover);
+}
+.diff-bar-btn.primary {
+  background: var(--text);
+  border-color: var(--text);
+  color: var(--bg);
+}
+.diff-bar-btn.primary:hover {
+  opacity: 0.85;
+}
+
+/* 改写进度/结果的单行状态（替代原先在面板里重复展示全文） */
+.ai-rewrite-status {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12.5px;
+  color: var(--text-secondary);
 }

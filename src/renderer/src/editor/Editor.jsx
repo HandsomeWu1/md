@@ -7,6 +7,8 @@ import { undo, redo } from '@milkdown/kit/prose/history';
 import { TextSelection } from '@milkdown/prose/state';
 import { getActiveFormats } from './selection';
 import { searchHighlightKey, setSearchQuery } from './searchHighlight';
+import { diffHighlightKey, diffToRanges, topLevelKeys } from './diffHighlight';
+import { diffBlocks } from '../utils/blockDiff';
 import TableFloatingToolbar from '../components/TableFloatingToolbar';
 
 function runWithView(editor, fn) {
@@ -156,6 +158,90 @@ const InnerEditor = forwardRef(function InnerEditor({ initialValue, onChange, on
           done = true;
         });
         return done;
+      },
+      /**
+       * 应用 AI 改写并在正文中标注改动位置。
+       *
+       * 先记录旧文档的块指纹，写入后再比对，从而知道「哪些块是这次改出来的」——
+       * 这个信息无法从结果文档反推，必须在应用前后各取一次快照。
+       *
+       * @param {string} md 改写后的 Markdown
+       * @param {{ range?: {from:number,to:number} }} opts
+       *   range 存在时只替换该区间（用发起请求时记录的位置，而非实时选区：
+       *   模型返回往往要等几秒，期间用户点一下正文选区就没了）。
+       * @returns {{ ok: boolean, added: number, changed: number, removed: number, coarse?: boolean }}
+       */
+      applyMarkdownWithDiff: (md, { range = null } = {}) => {
+        const ed = getRef.current();
+        const fail = { ok: false, added: 0, changed: 0, removed: 0 };
+        if (!ed) return fail;
+
+        let oldKeys = null;
+        ed.action((ctx) => {
+          const view = ctx.get(editorViewCtx);
+          if (view) oldKeys = topLevelKeys(view.state.doc);
+        });
+        if (!oldKeys) return fail;
+
+        // 写入：区间改写只动该区间，整篇改写走 replaceAll（两者都是单事务）。
+        let written = false;
+        if (range) {
+          ed.action((ctx) => {
+            const view = ctx.get(editorViewCtx);
+            if (!view) return;
+            const { state } = view;
+            const size = state.doc.content.size;
+            // 位置越界说明文档已被改动过，宁可失败也不能写错地方。
+            if (range.from < 0 || range.to > size || range.from >= range.to) return;
+            const parser = ctx.get(parserCtx);
+            const doc = parser(md || '');
+            if (!doc) return;
+            view.dispatch(state.tr.replaceWith(range.from, range.to, doc.content).scrollIntoView());
+            written = true;
+          });
+        } else {
+          ed.action(replaceAllAction(md || ''));
+          written = true;
+        }
+        if (!written) return fail;
+
+        // 比对并下发标注。文档过大时 diffBlocks 返回 null，此时不标注具体位置，
+        // 但仍要告知调用方「已应用、只是未标注」，避免用户以为没生效。
+        let result = { ok: true, added: 0, changed: 0, removed: 0, coarse: false };
+        ed.action((ctx) => {
+          const view = ctx.get(editorViewCtx);
+          if (!view) return;
+          const diff = diffBlocks(oldKeys, topLevelKeys(view.state.doc));
+          if (!diff) {
+            result.coarse = true;
+            return;
+          }
+          const ranges = diffToRanges(view.state.doc, diff);
+          view.dispatch(view.state.tr.setMeta(diffHighlightKey, { type: 'set', ranges }));
+          result.added = diff.added.length;
+          result.changed = diff.changed.length;
+          result.removed = diff.removedCount;
+        });
+        return result;
+      },
+      // 清除 AI 改动标注（用户点「保留」或撤销后调用）
+      clearDiffHighlight: () => {
+        runWithView(getRef.current(), (view) => {
+          view.dispatch(view.state.tr.setMeta(diffHighlightKey, { type: 'clear' }));
+        });
+      },
+      // 滚动到第一处 AI 改动，便于用户从改动处开始检查
+      scrollToFirstDiff: () => {
+        runWithView(getRef.current(), (view) => {
+          const set = diffHighlightKey.getState(view.state);
+          if (!set) return;
+          const found = set.find();
+          if (!found.length) return;
+          const first = found.reduce((min, d) => (d.from < min.from ? d : min), found[0]);
+          const dom = view.domAtPos(first.from);
+          const el = dom && dom.node && dom.node.nodeType === 1 ? dom.node : dom?.node?.parentElement;
+          if (el && el.scrollIntoView) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        });
       },
       undo: () => runWithView(getRef.current(), (view) => undo(view.state, view.dispatch)),
       redo: () => runWithView(getRef.current(), (view) => redo(view.state, view.dispatch)),

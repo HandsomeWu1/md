@@ -12,6 +12,8 @@ import Toolbar from './components/Toolbar';
 import CodeView from './components/CodeView';
 import AiPanel from './components/AiPanel';
 import AiSettingsDialog from './components/AiSettingsDialog';
+import DiffConfirmBar from './components/DiffConfirmBar';
+import { useAiChat } from './hooks/useAiChat';
 import Editor from './editor/Editor';
 import { extractOutline, countWords, findInMarkdown, replaceAllInMarkdown } from './utils/markdown';
 import { buildExportHtml } from './utils/export';
@@ -33,6 +35,8 @@ export default function App() {
   const [sidebarMode, setSidebarMode] = useState('files');
   const [aiOpen, setAiOpen] = useState(false);
   const [aiSettingsOpen, setAiSettingsOpen] = useState(false);
+  // 待确认的 AI 改动：{ tabId, snapshot, added, changed, removed, coarse }
+  const [aiDiff, setAiDiff] = useState(null);
   const [folderRoot, setFolderRoot] = useState(null);
   const [fileTree, setFileTree] = useState([]);
   const [childrenMap, setChildrenMap] = useState({});
@@ -71,6 +75,10 @@ export default function App() {
   activeTabIdRef.current = activeTabId;
   const expandedRef = useRef(expanded);
   expandedRef.current = expanded;
+  const settingsRef = useRef(settings);
+  settingsRef.current = settings;
+  const aiDiffRef = useRef(aiDiff);
+  aiDiffRef.current = aiDiff;
 
   const theme = settings.theme;
   const activeTab = tabs.find((t) => t.id === activeTabId) || null;
@@ -596,7 +604,7 @@ export default function App() {
   searchRef.current = search;
 
   // ---------- AI 面板 ----------
-  // 三个回调都用 refs 读取最新状态并保持引用稳定：AiPanel 会把 getSelection
+  // 这些回调都用 refs 读取最新状态并保持引用稳定：AiPanel 会把 getSelection
   // 注册到 selectionchange 监听上，函数引用每次渲染都变会导致反复解绑重绑。
   const aiGetDocument = useCallback(() => {
     const t = tabsRef.current.find((x) => x.id === activeTabIdRef.current);
@@ -610,32 +618,72 @@ export default function App() {
     return editorRef.current?.getSelectionMarkdown() || { empty: true, text: '' };
   }, []);
 
+  const aiGetTabId = useCallback(() => activeTabIdRef.current, []);
+  const aiGetMaxChars = useCallback(() => settingsRef.current.aiMaxContextChars || 60000, []);
+
   /**
-   * 把 AI 改写结果写入文档。返回是否成功。
-   * - 原请求基于选区：只替换选区（单事务，⌘Z 可整体撤销）。若用户此后已改变选择
-   *   则替换会失败，返回 false 让面板提示重试，绝不退化成整篇覆盖。
-   * - 原请求基于整篇：整篇替换，沿用 doReplace 已验证的 suppress + setMarkdown 模式。
+   * 把 AI 改写结果写入文档，并在正文里标注改动位置。
+   *
+   * 两个必须拒绝写入的情况（都会返回 ok:false 并说明原因，绝不写错地方）：
+   * 1. 请求完成时用户已切到别的文档 —— 结果属于原文档，不能落到当前文档上；
+   * 2. 基于选区的改写，但文档在等待期间已被改动 —— 记录的位置可能已错位。
    */
   const applyAiRewrite = useCallback(
-    (text, wasSelection) => {
-      const t = tabsRef.current.find((x) => x.id === activeTabIdRef.current);
-      if (!t) return false;
-      if (t.kind === 'code') {
-        setToast('代码视图暂不支持 AI 改写');
-        return false;
+    ({ tabId, text, range, docSnapshot }) => {
+      const t = tabsRef.current.find((x) => x.id === tabId);
+      if (!t) return { ok: false, reason: '文档已关闭，未写入' };
+      if (tabId !== activeTabIdRef.current) {
+        return { ok: false, reason: '文档已切换，未写入（请切回后重新改写）' };
       }
-      if (wasSelection) {
-        // 不设 suppressRef：让编辑器的 markdown listener 正常回写 tab 内容与 dirty 标记。
-        return !!editorRef.current?.replaceSelectionMarkdown(text);
+      if (t.kind === 'code') return { ok: false, reason: '代码视图不支持改写' };
+      if (range && (t.markdown || '') !== docSnapshot) {
+        return { ok: false, reason: '文档在改写期间已变动，未写入（请重新选中后再试）' };
       }
-      suppressRef.current = true;
-      editorRef.current?.setMarkdown(text);
-      suppressRef.current = false;
-      updateTab(t.id, { markdown: text, dirty: true });
-      return true;
+
+      const res = editorRef.current?.applyMarkdownWithDiff(text, { range });
+      if (!res || !res.ok) return { ok: false, reason: '写入失败，请重试' };
+
+      // 记录改写前内容，供「撤销」一键恢复——比依赖 undo 栈更可预期
+      // （用户在确认前可能已经手动编辑过若干次）。
+      setAiDiff({
+        tabId,
+        snapshot: docSnapshot,
+        added: res.added,
+        changed: res.changed,
+        removed: res.removed,
+        coarse: !!res.coarse,
+      });
+      return { ok: true, added: res.added, changed: res.changed, removed: res.removed, coarse: !!res.coarse };
     },
-    [updateTab]
+    []
   );
+
+  const ai = useAiChat({
+    getTabId: aiGetTabId,
+    getDocument: aiGetDocument,
+    getSelection: aiGetSelection,
+    getMaxChars: aiGetMaxChars,
+    applyRewrite: applyAiRewrite,
+    aliveTabIds: tabs.map((t) => t.id),
+  });
+
+  // 保留改动：仅清除标注，内容维持不变。
+  const keepAiDiff = useCallback(() => {
+    editorRef.current?.clearDiffHighlight();
+    setAiDiff(null);
+  }, []);
+
+  // 撤销改动：用改写前的快照整篇恢复，并清除标注。
+  const revertAiDiff = useCallback(() => {
+    const d = aiDiffRef.current;
+    if (!d) return;
+    suppressRef.current = true;
+    editorRef.current?.setMarkdown(d.snapshot);
+    suppressRef.current = false;
+    editorRef.current?.clearDiffHighlight();
+    updateTab(d.tabId, { markdown: d.snapshot, dirty: true });
+    setAiDiff(null);
+  }, [updateTab]);
 
   const saveAiSettings = useCallback((patch) => {
     setSettings((s) => ({ ...s, ...patch }));
@@ -644,6 +692,14 @@ export default function App() {
   }, []);
 
   const aiConfigured = !!(settings.aiBaseUrl && settings.aiModel && settings.aiApiKey);
+
+  // 切换文档时结束待确认状态：编辑器实例会随标签重建、标注无法延续，
+  // 而改动本身已经写进文档，因此「切走」等同于默认保留（仍可用 ⌘Z 回退）。
+  useEffect(() => {
+    if (aiDiff && aiDiff.tabId !== activeTabId) setAiDiff(null);
+  }, [activeTabId, aiDiff]);
+
+
 
   // ---------- 主题 ----------
   const toggleTheme = useCallback(() => {
@@ -1006,6 +1062,18 @@ export default function App() {
                   onChangeFontSize={applyFontSizeDelta}
                 />
               )}
+              {/* AI 改动确认条：紧贴正文上方，用户在文档里看着高亮做取舍 */}
+              {aiDiff && aiDiff.tabId === activeTabId && (
+                <DiffConfirmBar
+                  added={aiDiff.added}
+                  changed={aiDiff.changed}
+                  removed={aiDiff.removed}
+                  coarse={aiDiff.coarse}
+                  onKeep={keepAiDiff}
+                  onRevert={revertAiDiff}
+                  onLocate={() => editorRef.current?.scrollToFirstDiff()}
+                />
+              )}
               <div
                 className={'editor-container' + (settings.headingNumbering ? ' heading-numbering' : '')}
                 style={{ '--editor-font-size': (settings.fontSize || 13) + 'px' }}
@@ -1042,10 +1110,13 @@ export default function App() {
           <AiPanel
             configured={aiConfigured}
             canRewrite={!!activeTab && activeTab.kind !== 'code'}
-            maxContextChars={settings.aiMaxContextChars || 60000}
-            getDocument={aiGetDocument}
+            session={ai.session}
+            onSend={ai.send}
+            onStop={ai.stop}
+            onInputChange={ai.setInput}
+            onModeChange={ai.setMode}
+            onClear={ai.clear}
             getSelection={aiGetSelection}
-            onApply={applyAiRewrite}
             onOpenSettings={() => setAiSettingsOpen(true)}
             onClose={() => setAiOpen(false)}
           />

@@ -37,11 +37,13 @@
 
 ### AI 助手（右侧面板）
 - **入口**：标题栏右侧的对话气泡按钮，或菜单「视图 → 切换 AI 面板」（`Cmd+Shift+3`）。极简模式下自动隐藏。
-- **对话模式**：把当前文档作为只读上下文提问，流式输出，可随时点按钮停止生成。
+- **每个文档一个独立会话**：切换标签会切换到该文档自己的聊天记录与输入草稿，切回来内容仍在；关闭标签时其会话一并回收。默认进入**改写模式**。
 - **改写模式**：让 AI 改写文档。**有选区时只改选中片段**，没有选区则改整篇。
-- **改写结果需确认**：AI 输出先在面板里预览，点「应用到文档」才写入编辑器；写入是单个编辑事务，按一次 `Cmd+Z` 即可整体撤销。
-- **配置**：面板右上齿轮 → 填写 API 地址、API Key、模型名、温度。仅支持 **OpenAI 兼容的 `/chat/completions`** 接口（OpenAI、DeepSeek、Kimi、通义、OpenRouter、vLLM、Ollama 等均可）。地址填到 `/v1` 即可，也接受完整端点。
-- **实现要点**：请求由**主进程**发起 —— 渲染层 CSP 的 `connect-src` 不开放任意外部地址，这样既不放宽 CSP、又避开 CORS，且 API Key 不进入渲染进程。密钥以明文保存在本机 `settings.json`（用户自用定位）。AI 回复渲染关闭 raw HTML，防止模型输出造成 XSS。
+- **改动直接落在正文里并标注出来**：AI 输出会写进文档，新增段落标绿、被改写的段落标黄、删除处留一个小三角提示；正文上方出现一条确认栏，可「定位 / 撤销 / 保留」。撤销按改写前的快照整篇恢复（比依赖撤销栈更可预期），保留则只清除标注。
+- **对话模式**：把当前文档作为只读上下文提问，流式输出，可随时停止生成。
+- **输入**：`Enter` 发送、`Shift+Enter` 换行；中文输入法组字/选词期间的回车只用于确认候选，不会误发送。
+- **配置**：面板右上的滑块图标 → 填写 API 地址、API Key、模型名、温度。仅支持 **OpenAI 兼容的 `/chat/completions`** 接口（OpenAI、DeepSeek、Kimi、通义、OpenRouter、vLLM、Ollama 等均可）。地址填到 `/v1` 即可，也接受完整端点。
+- **实现要点**：请求由**主进程**发起 —— 渲染层 CSP 的 `connect-src` 不开放任意外部地址，这样既不放宽 CSP、又避开 CORS，且 API Key 不进入渲染进程。密钥以明文保存在本机 `settings.json`（用户自用定位）。AI 回复渲染关闭 raw HTML，防止模型输出造成 XSS。改动标注基于**顶层块级 diff**（LCS，先剥离公共前后缀），因此只有真正变化的段落会被标记。
 
 ## 技术栈
 
@@ -86,11 +88,13 @@ Margin/
             ├── editor/         # Milkdown 集成
             │   ├── createMilkdown.js  # 编辑器工厂（插件装配）
             │   ├── Editor.jsx         # React 封装
+            │   ├── diffHighlight.js   # AI 改动标注（decoration）
             │   ├── mermaidPreview.js  # Mermaid SVG 预览
             │   ├── modes.js           # Focus/Typewriter 模式
             │   └── slashMenu.js       # 斜杠命令菜单
             ├── components/     # UI 组件
-            ├── utils/          # 大纲/字数/导出工具
+            ├── hooks/          # useAiChat（按文档隔离的 AI 会话）
+            ├── utils/          # 大纲/字数/导出/块级 diff 工具
             └── styles/         # 主题与样式
 ```
 

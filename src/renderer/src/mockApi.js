@@ -76,8 +76,7 @@ export function installMockApi() {
       return { ok: true };
     },
     aiChat: async ({ requestId, messages }) => {
-      // 取最后一条用户消息作为「问题」来源；识别改写模式以返回合法 Markdown 文档，
-      // 方便在预览里测试「应用到文档」。
+      // 取最后一条用户消息作为「问题」来源；识别改写模式以返回可用于验证的结果。
       const lastUser = [...(messages || [])].reverse().find((m) => m.role === 'user');
       const userText = (lastUser && lastUser.content) || '';
       const isRewrite = userText.includes('[改写模式]') ||
@@ -85,13 +84,21 @@ export function installMockApi() {
 
       const normalReply = '这是一段用于验证 UI 的模拟回复。AI 对话功能已在主进程侧链路完成接入，' +
         '渲染层通过 onAiChunk 接收流式增量并实时渲染到对话气泡中。';
-      const rewriteReply = '# 改写后的文档\n\n' +
-        '## 概述\n\n这是一段**由模拟改写模式返回**的 Markdown 文档，' +
-        '用于验证「应用到文档」流程能够把 AI 输出写回编辑器。\n\n' +
-        '## 要点\n\n- 第一条要点：保持原文的核心信息。\n- 第二条要点：语言更简洁通顺。\n\n' +
-        '> 提示：这是引用块，用于确认 Markdown 渲染正常。';
 
-      const full = isRewrite ? rewriteReply : normalReply;
+      // 改写模式：基于原文做**局部**改动（改一段 + 追加一段），
+      // 这样正文里的差异标注（修改/新增）才有真实可验证的效果。
+      const buildRewrite = () => {
+        const m = /以下是需要改写的 Markdown [^：]*：\n\n([\s\S]*)$/.exec(userText);
+        const source = m ? m[1].trim() : '';
+        if (!source) return '# 改写后的文档\n\n这是模拟改写返回的内容。';
+        const blocks = source.split(/\n{2,}/);
+        const idx = blocks.length > 1 ? 1 : 0;
+        blocks[idx] = '【已精简】' + blocks[idx];
+        blocks.push('这一段是模拟改写新增的内容，用于验证「新增」标注。');
+        return blocks.join('\n\n');
+      };
+
+      const full = isRewrite ? buildRewrite() : normalReply;
       let content = '';
       // 按 6~10 字符切片模拟流式，每片延时让渲染层能看到渐进效果。
       let i = 0;
