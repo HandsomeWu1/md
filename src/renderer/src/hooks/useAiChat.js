@@ -50,6 +50,11 @@ export function useAiChat({
   // requestId → 发起它的会话 key。跨标签路由增量与结果都依赖这张表。
   const ownerRef = useRef(new Map());
 
+  // 记住最近一次「带选区的发送」的选区范围。选区预设把结果放进对话框后，焦点会离开编辑器、
+  // 原选区丢失；用户随后在对话框里说「改到文件里」时，仍可用这份快照把改写落到原本选中的
+  // 片段上，而不是因为选区没了就误改整篇文档。
+  const presetSelRef = useRef(null);
+
   const patchSession = useCallback((tabId, patch) => {
     if (!tabId) return;
     setSessions((prev) => {
@@ -137,6 +142,9 @@ export function useAiChat({
     // 记录发起时的选区位置与文档快照：等模型返回时选区大概率已经没了，
     // 必须靠这份快照判断「还能不能安全写回原位置」。工作区作用域不按选区改写。
     const target = isWorkspace || sel.empty ? null : { from: sel.from, to: sel.to };
+    // 记住最近一次带选区的发送范围（仅 doc 作用域），供用户之后在对话框里
+    // 说「改到文件里」时，把改写落到这份选区上，而不是误改整篇文档。
+    if (!isWorkspace && sel && !sel.empty) presetSelRef.current = { from: sel.from, to: sel.to };
 
     patchSession(key, (s) => ({
       busy: true,
@@ -221,7 +229,9 @@ export function useAiChat({
             applyInfo = await applyRewrite({
               tabId: getTabId(),
               text: parsed.text,
-              range: target,
+              // 选区仍在就用实时选区；选区已随对话框焦点丢失则用预设时记住的快照，
+              // 保证「改到文件里」落到原本选中的片段，而非整篇文档。
+              range: target || presetSelRef.current,
               docSnapshot: docBefore,
               cleared: isClear,
             });
@@ -303,10 +313,12 @@ export function useAiChat({
   }, [doSend, getScope, getTabId]);
 
   // 选区快捷动作：强制 doc 作用域（结果作用在当前文档），复用实时选区上下文。
+  // 不再强制按选区改写——预设结果作为「对话回复」显示在 AI 面板里，不直接改文档；
+  // 用户要落盘时自行在对话框说「改到文件里」，由模型输出 %%REWRITE%% 标记再写入。
   const runPreset = useCallback(
     (instruction) => {
       const key = scopeSessionKey('doc', getTabId() || NO_DOC_KEY);
-      return doSend('doc', key, instruction, true);
+      return doSend('doc', key, instruction, false);
     },
     [doSend, getTabId]
   );

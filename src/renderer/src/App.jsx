@@ -1281,10 +1281,10 @@ export default function App() {
         <SelectionAiMenu
           rect={aiSelMenu && aiConfigured ? aiSelMenu : null}
           onAction={(preset) => {
-            // 浮动菜单的预设是「选区改写」：强制走改写协议、直接写进文档，
-            // 不要在对话框里当成对话回复，也不要打开/抢占 AI 面板的焦点
-            // （否则焦点跑到回复框、第二次选区就改写不动了）。
-            // 改写结果由正文上方的 DiffConfirmBar 确认即可。
+            // 选区 AI 菜单的预设（翻译/总结/润色…）只把结果作为「对话回复」展示在 AI 面板里，
+            // 不直接改写文档；用户要落盘时需自行在对话框里说「改到文件里」，由模型输出改写标记再写入。
+            // 因此这里打开 AI 面板，让用户看到预设结果。
+            setAiOpen(true);
             ai.runPreset(preset.instruction);
             setAiSelMenu(null);
           }}
