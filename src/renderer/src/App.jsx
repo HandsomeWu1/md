@@ -12,6 +12,7 @@ import Toolbar from './components/Toolbar';
 import CodeView from './components/CodeView';
 import AiPanel from './components/AiPanel';
 import AiSettingsDialog from './components/AiSettingsDialog';
+import SelectionAiMenu from './components/SelectionAiMenu';
 import DiffConfirmBar from './components/DiffConfirmBar';
 import { useAiChat, NO_DOC_KEY } from './hooks/useAiChat';
 import Editor from './editor/Editor';
@@ -25,6 +26,26 @@ let uid = 0;
 const nextId = () => `tab-${++uid}`;
 const baseName = (p) => (p ? p.split('/').pop() : '未命名');
 
+// 递归收集文件夹下所有 Markdown 文本文件，供「整个文件夹」作用域作为上下文 / 改写目标。
+async function collectFolderMdFiles(api, root) {
+  const out = [];
+  const walk = async (dir) => {
+    const res = await api.listTree(dir);
+    if (!res || !res.ok) return;
+    for (const node of res.tree || []) {
+      const p = node.path;
+      if (node.isDir) {
+        await walk(p);
+      } else if (/\.(md|markdown|mdown|txt)$/i.test(p)) {
+        const r = await api.readFile(p);
+        out.push({ name: baseName(p), path: p, markdown: (r && r.ok ? r.content : '') || '', kind: 'md' });
+      }
+    }
+  };
+  await walk(root);
+  return out;
+}
+
 export default function App() {
   // 在组件体内取 api，避免模块顶层固化 window.api（preload/mock 注入时机更晚时会拿到 undefined）。
   const api = window.api;
@@ -35,6 +56,10 @@ export default function App() {
   const [sidebarMode, setSidebarMode] = useState('files');
   const [aiOpen, setAiOpen] = useState(false);
   const [aiSettingsOpen, setAiSettingsOpen] = useState(false);
+  // AI 作用域：'doc' 当前文档 | 'tabs' 已打开文件 | 'folder' 整个打开的文件夹
+  const [aiScope, setAiScope] = useState('tabs');
+  // 选区浮动 AI 菜单的位置（视口坐标），null 表示隐藏
+  const [aiSelMenu, setAiSelMenu] = useState(null);
   // 待确认的 AI 改动：{ tabId, snapshot, added, changed, removed, coarse }
   const [aiDiff, setAiDiff] = useState(null);
   const [folderRoot, setFolderRoot] = useState(null);
@@ -79,6 +104,23 @@ export default function App() {
   settingsRef.current = settings;
   const aiDiffRef = useRef(aiDiff);
   aiDiffRef.current = aiDiff;
+  const aiScopeRef = useRef(aiScope);
+  aiScopeRef.current = aiScope;
+  // 「整个文件夹」作用域下读到的文件缓存，避免每次发送都重新遍历磁盘
+  const aiFolderDocsCacheRef = useRef({ key: null, files: [] });
+  const folderRootRef = useRef(folderRoot);
+  folderRootRef.current = folderRoot;
+
+  // 选区菜单按视口坐标固定定位，滚动/缩放后位置会失真，直接隐藏。
+  useEffect(() => {
+    const close = () => setAiSelMenu(null);
+    window.addEventListener('scroll', close, true);
+    window.addEventListener('resize', close);
+    return () => {
+      window.removeEventListener('scroll', close, true);
+      window.removeEventListener('resize', close);
+    };
+  }, []);
 
   const theme = settings.theme;
   const activeTab = tabs.find((t) => t.id === activeTabId) || null;
@@ -621,9 +663,35 @@ export default function App() {
   const aiGetTabId = useCallback(() => activeTabIdRef.current, []);
   const aiGetMaxChars = useCallback(() => settingsRef.current.aiMaxContextChars || 60000, []);
   const aiGetCanRewrite = useCallback(() => {
+    // 工作区作用域按文件名定位目标，不受当前激活标签类型限制
+    if ((aiScopeRef.current || 'doc') !== 'doc') return true;
     const t = tabsRef.current.find((x) => x.id === activeTabIdRef.current);
     return !!t && t.kind !== 'code';
   }, []);
+  const aiGetScope = useCallback(() => aiScopeRef.current || 'doc', []);
+  const aiGetWorkspaceDocs = useCallback(async (scope) => {
+    if (scope === 'folder') {
+      const root = folderRootRef.current;
+      if (!root) return [];
+      if (aiFolderDocsCacheRef.current.key === root && aiFolderDocsCacheRef.current.files) {
+        return aiFolderDocsCacheRef.current.files;
+      }
+      const files = await collectFolderMdFiles(api, root);
+      aiFolderDocsCacheRef.current = { key: root, files };
+      return files;
+    }
+    // 'tabs'：所有已打开的标签（md 与代码都纳入上下文，但只有 md 可改写）
+    return tabsRef.current.map((t) => ({
+      name: t.name,
+      path: t.path || '',
+      markdown: t.markdown || '',
+      kind: t.kind || 'md',
+    }));
+  }, []);
+  // 工作区改写后跳到其中一个被改的文件，让用户看到高亮 / 结果
+  const aiOnRewritten = useCallback((tabId) => {
+    if (tabId) switchTab(tabId);
+  }, [switchTab]);
   const aiGetSystemPrompt = useCallback(() => settingsRef.current.aiSystemPrompt || '', []);
   const aiGetPrice = useCallback(() => {
     const s = settingsRef.current;
@@ -643,7 +711,59 @@ export default function App() {
    * 2. 基于选区的改写，但文档在等待期间已被改动 —— 记录的位置可能已错位。
    */
   const applyAiRewrite = useCallback(
-    ({ tabId, text, range, docSnapshot, cleared }) => {
+    async ({ tabId, target, text, range, docSnapshot, cleared }) => {
+      // 工作区改写：模型指名目标文件，按文件名 / 路径定位（可能改写多个文件之一）
+      if (target) {
+        const tname = target.replace(/\s*\(.*\)$/, '').trim();
+        const tab = tabsRef.current.find(
+          (x) =>
+            x.path === target ||
+            x.name === tname ||
+            (x.path && (baseName(x.path) === tname || x.path.endsWith('/' + tname) || x.path.endsWith('\\' + tname)))
+        );
+        if (tab) {
+          if (tab.kind === 'code') return { ok: false, reason: `${tab.name} 是代码视图，暂不支持改写` };
+          // 文件名在 buildWorkspaceContext 里可能以 `name (path)` 展示，去掉后缀再匹配
+          if (tab.id === activeTabIdRef.current) {
+            const res = editorRef.current?.applyMarkdownWithDiff(text, {});
+            if (!res || !res.ok) return { ok: false, reason: '写入失败，请重试' };
+            setAiDiff({
+              tabId: tab.id,
+              snapshot: tab.markdown,
+              added: res.added,
+              changed: res.changed,
+              removed: res.removed,
+              coarse: !!res.coarse,
+              cleared: !!cleared,
+            });
+            return {
+              tabId: tab.id,
+              ok: true,
+              added: res.added,
+              changed: res.changed,
+              removed: res.removed,
+              coarse: !!res.coarse,
+              cleared: !!cleared,
+            };
+          }
+          // 打开但非激活：直接更新内容 + 落盘（实例未挂载，不显示高亮）
+          updateTab(tab.id, { markdown: text, dirty: true });
+          if (tab.path) await api.writeFile(tab.path, text);
+          return { tabId: tab.id, ok: true, coarse: true, reason: '已写入（切到该文件查看）' };
+        }
+        // 未打开：尝试按完整路径或文件夹缓存解析后直接写磁盘
+        let diskPath = target.includes('/') || target.includes('\\') ? target : null;
+        if (!diskPath) {
+          const cache = aiFolderDocsCacheRef.current.files || [];
+          const f = cache.find((x) => x.name === tname);
+          if (f) diskPath = f.path;
+        }
+        if (!diskPath) return { ok: false, reason: `未找到文件：${target}` };
+        const w = await api.writeFile(diskPath, text);
+        return { tabId: null, ok: !!w.ok, reason: w.ok ? '已写入磁盘文件' : w.error || '写入失败', coarse: true };
+      }
+
+      // 当前文档改写（doc 作用域）
       // 无文档会话（NO_DOC_KEY）不对应任何标签，理论上模型已被告知不能改写，
       // 但仍要防住它硬输出改写标记的情况。
       if (tabId === NO_DOC_KEY) return { ok: false, reason: '没有打开的文档，未写入' };
@@ -693,6 +813,9 @@ export default function App() {
     getPrice: aiGetPrice,
     applyRewrite: applyAiRewrite,
     aliveTabIds: tabs.map((t) => t.id),
+    getScope: aiGetScope,
+    getWorkspaceDocs: aiGetWorkspaceDocs,
+    onRewritten: aiOnRewritten,
   });
 
   // 保留改动：仅清除标注，内容维持不变。
@@ -1120,6 +1243,7 @@ export default function App() {
                     initialValue={activeTab.markdown}
                     onChange={handleEditorChange}
                     onSelectionChange={setActiveFormats}
+                    onSelectionRectChange={(rect) => setAiSelMenu(rect)}
                   />
                 )}
               </div>
@@ -1140,6 +1264,8 @@ export default function App() {
             configured={aiConfigured}
             canRewrite={!!activeTab && activeTab.kind !== 'code'}
             hasDocument={!!activeTab}
+            scope={aiScope}
+            onScopeChange={setAiScope}
             session={ai.session}
             onSend={ai.send}
             onStop={ai.stop}
@@ -1150,6 +1276,17 @@ export default function App() {
             onClose={() => setAiOpen(false)}
           />
         )}
+
+        {/* 选区浮动 AI 菜单：选中文本时出现在选区上方，提供改写/翻译/生成图表等快捷动作 */}
+        <SelectionAiMenu
+          rect={aiSelMenu && aiConfigured ? aiSelMenu : null}
+          onAction={(preset) => {
+            setAiScope('doc');
+            setAiOpen(true);
+            ai.runPreset(preset.instruction);
+          }}
+          onClose={() => setAiSelMenu(null)}
+        />
       </div>
 
       <AiSettingsDialog

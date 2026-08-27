@@ -35,7 +35,55 @@ export const DEFAULT_SYSTEM_PROMPT =
   '注意：输出的必须是修改后的**结果本身**，不要把原文原样返回。\n\n' +
   '【判断原则】\n' +
   '如果不确定用户是否想修改文档，就用对话方式回答并主动询问。' +
-  '用户没有明确提出修改要求时，绝对不要使用方式二。';
+  '用户没有明确提出修改要求时，绝对不要使用方式二。\n\n' +
+  '【图表】\n' +
+  '如果需要呈现流程图、时序图、关系图、思维导图等，请用 ```mermaid 代码块输出，' +
+  '编辑器会将其渲染为图表（代码块的语言需写成 mermaid）。';
+
+/**
+ * 把工作区里的多个文件拼成一段上下文。
+ * @param {Array} files [{ name, path, markdown, kind }]
+ * @returns {{ text: string, truncated: boolean, fileCount: number }}
+ */
+export function buildWorkspaceContext(files, maxChars) {
+  const s = (files || [])
+    .map((f) => {
+      const label = f.path && f.path !== f.name ? `${f.name} (${f.path})` : f.name;
+      return `=== 文件: ${label} ===\n${f.markdown || ''}\n=== 文件结束 ===`;
+    })
+    .join('\n\n');
+  const { text, truncated } = clampContext(s, maxChars);
+  return { text, truncated, fileCount: (files || []).length };
+}
+
+/**
+ * 解析工作区作用域下的回复：可能同时包含「对话文字」和多个「改写某个文件」的标记块。
+ *
+ * 标记格式（每行一个，可重复出现以同时改多个文件）：
+ *   %%REWRITE%% <文件名>
+ *   <该文件的完整新内容>
+ *
+ * 文件名需与 buildMessages 里列出的工作区文件名（含扩展名）完全一致。
+ *
+ * @returns {{ chat: string, rewrites: Array<{ target: string, text: string }> }}
+ */
+export function parseMultiRewrite(raw) {
+  const s = (raw || '').replace(/^\s+/, '');
+  const re = /%%REWRITE%%\s*([^\r\n]+)\r?\n/gm;
+  const markers = [];
+  let m;
+  while ((m = re.exec(s))) markers.push({ index: m.index, name: m[1].trim(), contentStart: re.lastIndex });
+  if (!markers.length) return { chat: s, rewrites: [] };
+  const rewrites = [];
+  for (let i = 0; i < markers.length; i++) {
+    const start = markers[i].contentStart;
+    const end = i + 1 < markers.length ? markers[i + 1].index : s.length;
+    const text = stripCodeFence(s.slice(start, end).replace(/\s+$/, ''));
+    rewrites.push({ target: markers[i].name, text });
+  }
+  const chat = s.slice(0, markers[0].index).replace(/^\s+|\s+$/g, '');
+  return { chat, rewrites };
+}
 
 // 上下文裁剪：超长文档直接整篇发送会撑爆模型上下文，也会让请求极慢。
 // 从中间截断并留下明确标记，比从尾部硬切更能保留文档的首尾结构信息。
@@ -164,6 +212,8 @@ export function parseAiReply(raw) {
  * @param {number} o.maxChars    上下文字符上限
  * @param {boolean} o.canRewrite 当前视图是否允许改写（代码视图不允许）
  * @param {string} o.systemPrompt 自定义 system 提示词；留空则用内置默认
+ * @param {string} o.scope       'doc' | 'workspace'；workspace 表示跨文件问答/整工作区改写
+ * @param {Array}  o.workspaceFiles [{ name, path, markdown, kind }]，仅 workspace 作用域使用
  */
 export function buildMessages({
   prompt,
@@ -173,6 +223,8 @@ export function buildMessages({
   maxChars = 60000,
   canRewrite = true,
   systemPrompt = '',
+  scope = 'doc',
+  workspaceFiles = null,
 }) {
   // 用户可能把提示词清空后保存，此时回退默认而不是发一条空 system——
   // 空提示词会让模型完全失去行为约束。
@@ -186,6 +238,25 @@ export function buildMessages({
       role: 'system',
       content: '注意：当前视图不支持改写文档，请始终使用方式一（对话）回答，不要输出改写标记。',
     });
+  }
+
+  // 工作区作用域：跨文件问答与整工作区改写。上下文是多个文件，改写需指名目标文件。
+  if (scope === 'workspace') {
+    const { text: wsText, truncated: wsTrunc } = buildWorkspaceContext(workspaceFiles || [], maxChars);
+    const names = (workspaceFiles || []).map((f) => f.name).join('、');
+    msgs.push({
+      role: 'system',
+      content:
+        `你正在处理一个工作区，包含以下文件：${names || '（当前没有已打开的文件）'}。\n\n` +
+        `各文件内容如下：\n\n${wsText || '（无内容）'}\n\n` +
+        `若判断需要修改其中某个文件，请用如下格式声明，每修改一个文件写一个标记块：\n` +
+        `${REWRITE_MARKER} <文件名>\n<该文件的完整新内容>\n` +
+        `文件名需与上方面列出的文件名（含扩展名）完全一致。可以在一次回复里写多个标记块以同时修改多个文件，` +
+        `标记块之间不要插入任何多余文字。若只是回答问题，则正常用对话方式回答，不要输出标记。`,
+    });
+    for (const m of history) msgs.push({ role: m.role, content: m.content });
+    msgs.push({ role: 'user', content: prompt });
+    return { truncated: wsTrunc, messages: msgs };
   }
 
   // 有选区时，改写目标只能是选区——这是避免「顺手重写整篇」的关键约束，

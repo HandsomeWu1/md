@@ -19,11 +19,13 @@ function runWithView(editor, fn) {
   });
 }
 
-const InnerEditor = forwardRef(function InnerEditor({ initialValue, onChange, onSelectionChange }, ref) {
+const InnerEditor = forwardRef(function InnerEditor({ initialValue, onChange, onSelectionChange, onSelectionRectChange }, ref) {
   const onChangeRef = useRef(onChange);
   onChangeRef.current = onChange;
   const onSelectionChangeRef = useRef(onSelectionChange);
   onSelectionChangeRef.current = onSelectionChange;
+  const onSelectionRectRef = useRef(onSelectionRectChange);
+  onSelectionRectRef.current = onSelectionRectChange;
   const initialValueRef = useRef(initialValue);
   const [pmView, setPmView] = useState(null);
 
@@ -40,6 +42,23 @@ const InnerEditor = forwardRef(function InnerEditor({ initialValue, onChange, on
           requestAnimationFrame(() => {
             if (onSelectionChangeRef.current) {
               onSelectionChangeRef.current(getActiveFormats(ctx));
+            }
+            // 选区矩形：供浮动 AI 菜单定位。折叠 / 空选区时隐藏菜单。
+            const view = ctx.get(editorViewCtx);
+            if (!view) return;
+            const { from, to, empty } = view.state.selection;
+            if (empty || from === to) {
+              if (onSelectionRectRef.current) onSelectionRectRef.current(null);
+              return;
+            }
+            try {
+              const a = view.coordsAtPos(from);
+              const b = view.coordsAtPos(to);
+              const left = Math.round((a.left + b.left) / 2);
+              const top = Math.round(Math.min(a.top, b.top));
+              if (onSelectionRectRef.current) onSelectionRectRef.current({ left, top });
+            } catch {
+              if (onSelectionRectRef.current) onSelectionRectRef.current(null);
             }
           });
         },

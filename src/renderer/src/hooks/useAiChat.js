@@ -1,5 +1,13 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { buildMessages, parseAiReply, splitThinking } from '../utils/aiPrompt';
+import { buildMessages, parseAiReply, parseMultiRewrite, splitThinking } from '../utils/aiPrompt';
+
+// 作用域 → 会话 key。
+// - 'doc'：每个文档独立会话，key = `doc:<tabId>`；无文档时 key = `doc:__no_document__`。
+// - 'tabs' / 'folder'：整工作区共享一个会话，key 就是作用域名本身。
+function scopeSessionKey(scope, tabId) {
+  if (scope === 'doc') return 'doc:' + (tabId || NO_DOC_KEY);
+  return scope;
+}
 
 let seq = 0;
 const nextRequestId = () => `ai-${Date.now()}-${++seq}`;
@@ -32,6 +40,9 @@ export function useAiChat({
   getPrice,
   applyRewrite,
   aliveTabIds,
+  getScope,
+  getWorkspaceDocs,
+  onRewritten,
 }) {
   const api = window.api;
   const [sessions, setSessions] = useState({});
@@ -69,37 +80,65 @@ export function useAiChat({
     return off;
   }, [patchSession]);
 
-  const send = useCallback(async () => {
-    // 没有打开文档时用固定 key，让「先聊天再决定要不要建文档」成为可能。
-    const tabId = getTabId() || NO_DOC_KEY;
-    const session = sessions[tabId] || emptySession();
-    const prompt = (session.input || '').trim();
-    if (!prompt || session.busy) return;
+  // 实际发送逻辑。promptOverride 非空时直接用它作为本次指令（如选区快捷动作），
+  // 否则读取该作用域会话里的输入框内容。scope/key 显式传入，便于选区动作强制使用 doc 作用域。
+  const doSend = useCallback(
+    async (scope, key, promptOverride, forceSelectionRewrite) => {
+      const session = sessions[key] || emptySession();
+      const prompt = (promptOverride != null ? promptOverride : session.input || '').trim();
+      if (!prompt || session.busy) return;
 
+    const isWorkspace = scope !== 'doc';
     const sel = getSelection() || { empty: true, text: '' };
     const docBefore = getDocument() || '';
-    const { messages: payloadMessages, truncated } = buildMessages({
-      prompt,
-      document: docBefore,
-      selection: sel.empty ? '' : sel.text,
-      // 只把对话往来带进历史；改写结果是整篇文档，塞进历史会迅速撑爆上下文。
-      history: session.messages
-        .filter((m) => !m.error && !m.pending && m.kind !== 'rewrite')
-        .slice(-6)
-        .map((m) => ({ role: m.role, content: m.content })),
-      maxChars: getMaxChars(),
-      canRewrite: getCanRewrite ? getCanRewrite() : true,
-      systemPrompt: getSystemPrompt ? getSystemPrompt() : '',
-    });
+
+    // 只把对话往来带进历史；改写结果是整篇文档，塞进历史会迅速撑爆上下文。
+    const history = session.messages
+      .filter((m) => !m.error && !m.pending && m.kind !== 'rewrite')
+      .slice(-6)
+      .map((m) => ({ role: m.role, content: m.content }));
+
+    let payloadMessages;
+    let truncated = false;
+    if (isWorkspace) {
+      // 工作区作用域：把多个文件作为上下文，改写需指名目标文件。
+      const files = (getWorkspaceDocs ? await getWorkspaceDocs(scope) : []) || [];
+      const built = buildMessages({
+        prompt,
+        document: '',
+        selection: '',
+        history,
+        maxChars: getMaxChars(),
+        canRewrite: getCanRewrite ? getCanRewrite() : true,
+        systemPrompt: getSystemPrompt ? getSystemPrompt() : '',
+        scope: 'workspace',
+        workspaceFiles: files,
+      });
+      payloadMessages = built.messages;
+      truncated = built.truncated;
+    } else {
+      const built = buildMessages({
+        prompt,
+        document: docBefore,
+        selection: sel.empty ? '' : sel.text,
+        history,
+        maxChars: getMaxChars(),
+        canRewrite: getCanRewrite ? getCanRewrite() : true,
+        systemPrompt: getSystemPrompt ? getSystemPrompt() : '',
+        scope: 'doc',
+      });
+      payloadMessages = built.messages;
+      truncated = built.truncated;
+    }
 
     const requestId = nextRequestId();
-    ownerRef.current.set(requestId, tabId);
+    ownerRef.current.set(requestId, key);
 
     // 记录发起时的选区位置与文档快照：等模型返回时选区大概率已经没了，
-    // 必须靠这份快照判断「还能不能安全写回原位置」。
-    const target = sel.empty ? null : { from: sel.from, to: sel.to };
+    // 必须靠这份快照判断「还能不能安全写回原位置」。工作区作用域不按选区改写。
+    const target = isWorkspace || sel.empty ? null : { from: sel.from, to: sel.to };
 
-    patchSession(tabId, (s) => ({
+    patchSession(key, (s) => ({
       busy: true,
       input: '',
       messages: [
@@ -119,30 +158,87 @@ export function useAiChat({
     const body = split ? split.rest : '';
 
     // 意图由模型的回复决定：只有明确声明改写时才动文档，其余一律当对话。
-    const parsed = split ? parseAiReply(body) : null;
-    const isRewrite = !!parsed && parsed.kind === 'rewrite';
+    let kind = 'chat';
+    let chatText = '';
+    let chars = 0;
     let applyInfo = null;
-    if (isRewrite) {
-      // 空正文是**合法意图**（用户要求清空文档），不能当异常拒绝——
-      // 模型既然输出了改写标记，就是有意改写。误清空由确认条的「撤销」兜底。
-      // 但选区改写时清空选区的语义太容易出错（如模型只是漏输出），故仍要求非空。
-      const isClear = !parsed.text;
-      if (isClear && target) {
-        applyInfo = { ok: false, reason: '模型返回了空内容，未改动选中片段' };
+    const switchTo = [];
+
+    if (isWorkspace) {
+      const parsed = split ? parseMultiRewrite(body) : { chat: '', rewrites: [] };
+      chatText = parsed.chat || '';
+      const rewrites = parsed.rewrites || [];
+      if (rewrites.length) {
+        kind = 'rewrite';
+        applyInfo = { ok: true, files: [] };
+        for (const r of rewrites) {
+          const info = await applyRewrite({ target: r.target, text: r.text });
+          if (info && info.tabId) switchTo.push(info.tabId);
+          applyInfo.files.push({ target: r.target, ok: info ? info.ok : false, reason: info ? info.reason : '未找到该文件' });
+        }
+        if (applyInfo.files.some((f) => !f.ok)) applyInfo.ok = false;
+        chars = rewrites.reduce((a, r) => a + r.text.length, 0);
       } else {
-        applyInfo = applyRewrite({
-          tabId,
-          text: parsed.text,
-          range: target,
-          docSnapshot: docBefore,
-          cleared: isClear,
-        });
+        chatText = chatText || body;
+      }
+    } else {
+      const parsed = split ? parseAiReply(body) : null;
+      if (forceSelectionRewrite) {
+        // 选区快捷动作：答复一律作为「改写选区」应用，不依赖模型是否输出标记。
+        // 保留代码块围栏（如 ```mermaid），让编辑器按类型渲染图表；仅剔除改写标记前缀。
+        if (!target) {
+          kind = 'chat';
+          chatText = body;
+        } else {
+          kind = 'rewrite';
+          const text = body.replace(/^%%REWRITE%%\s*/i, '').trim();
+          if (!text) {
+            applyInfo = { ok: false, reason: '模型返回了空内容，未改动选中片段' };
+          } else {
+            applyInfo = await applyRewrite({
+              tabId,
+              text,
+              range: target,
+              docSnapshot: docBefore,
+              cleared: false,
+            });
+          }
+          if (applyInfo && applyInfo.tabId) switchTo.push(applyInfo.tabId);
+          chars = text.length;
+        }
+      } else {
+        const isRewrite = !!parsed && parsed.kind === 'rewrite';
+        if (isRewrite) {
+          kind = 'rewrite';
+          const isClear = !parsed.text;
+          // 空正文是**合法意图**（用户要求清空文档），不能当异常拒绝——
+          // 模型既然输出了改写标记，就是有意改写。误清空由确认条的「撤销」兜底。
+          // 但选区改写时清空选区的语义太容易出错（如模型只是漏输出），故仍要求非空。
+          if (isClear && target) {
+            applyInfo = { ok: false, reason: '模型返回了空内容，未改动选中片段' };
+          } else {
+            applyInfo = await applyRewrite({
+              tabId,
+              text: parsed.text,
+              range: target,
+              docSnapshot: docBefore,
+              cleared: isClear,
+            });
+          }
+          if (applyInfo && applyInfo.tabId) switchTo.push(applyInfo.tabId);
+          chars = parsed.text.length;
+        } else {
+          chatText = parsed ? parsed.text : body;
+        }
       }
     }
 
     const price = getPrice ? getPrice() : null;
 
-    patchSession(tabId, (s) => ({
+    // 工作区改写后跳到其中一个被改的文件，让用户看到高亮 / 结果。
+    if (isWorkspace && switchTo.length && onRewritten) onRewritten(switchTo[0]);
+
+    patchSession(key, (s) => ({
       busy: false,
       messages: s.messages.map((m) => {
         if (m.id !== requestId) return m;
@@ -150,7 +246,7 @@ export function useAiChat({
           // reasoning 字段优先；没有则用从正文剥出的 <think> 内容。
           const reasoning = (res.reasoning || '').trim() || thinking || m.reasoning || '';
           const common = { reasoning, usage: res.usage || null, price: price || null };
-          if (isRewrite) {
+          if (kind === 'rewrite') {
             // 改写结果已写进文档，面板不再展示全文，只留长度——
             // 否则多轮改写会把若干份全文长期留在内存里。
             return {
@@ -158,12 +254,12 @@ export function useAiChat({
               ...common,
               pending: false,
               kind: 'rewrite',
-              content: '',
-              chars: parsed.text.length,
+              content: chatText || '',
+              chars,
               apply: applyInfo || undefined,
             };
           }
-          return { ...m, ...common, pending: false, kind: 'chat', content: parsed.text || body || m.content };
+          return { ...m, ...common, pending: false, kind: 'chat', content: chatText || body || m.content };
         }
         return {
           ...m,
@@ -174,6 +270,8 @@ export function useAiChat({
     }));
   }, [
     sessions,
+    getScope,
+    getWorkspaceDocs,
     getTabId,
     getDocument,
     getSelection,
@@ -182,29 +280,48 @@ export function useAiChat({
     getSystemPrompt,
     getPrice,
     applyRewrite,
+    onRewritten,
     patchSession,
   ]);
 
+  // 输入框发送：使用当前作用域会话。
+  const send = useCallback(() => {
+    const scope = getScope ? getScope() : 'doc';
+    const key = scopeSessionKey(scope, getTabId() || NO_DOC_KEY);
+    return doSend(scope, key);
+  }, [doSend, getScope, getTabId]);
+
+  // 选区快捷动作：强制 doc 作用域（结果作用在当前文档），复用实时选区上下文。
+  const runPreset = useCallback(
+    (instruction) => {
+      const key = scopeSessionKey('doc', getTabId() || NO_DOC_KEY);
+      return doSend('doc', key, instruction, true);
+    },
+    [doSend, getTabId]
+  );
+
   const stop = useCallback(() => {
-    const tabId = getTabId() || NO_DOC_KEY;
+    const scope = getScope ? getScope() : 'doc';
+    const key = scopeSessionKey(scope, getTabId() || NO_DOC_KEY);
     // 找出该会话正在进行的请求并中止。
     for (const [requestId, owner] of ownerRef.current.entries()) {
-      if (owner === tabId) api.aiAbort(requestId);
+      if (owner === key) api.aiAbort(requestId);
     }
-  }, [getTabId]);
+  }, [getScope, getTabId]);
 
   const setInput = useCallback(
-    (v) => patchSession(getTabId() || NO_DOC_KEY, { input: v }),
-    [getTabId, patchSession]
+    (v) => patchSession(scopeSessionKey(getScope ? getScope() : 'doc', getTabId() || NO_DOC_KEY), { input: v }),
+    [getScope, getTabId, patchSession]
   );
   const clear = useCallback(
-    () => patchSession(getTabId() || NO_DOC_KEY, { messages: [] }),
-    [getTabId, patchSession]
+    () => patchSession(scopeSessionKey(getScope ? getScope() : 'doc', getTabId() || NO_DOC_KEY), { messages: [] }),
+    [getScope, getTabId, patchSession]
   );
 
   // 标签关闭后回收其会话，避免长期占用内存。
   // 用存活标签集合被动回收，而不是让 closeTab 主动调用——后者会造成
   // App 里的定义顺序依赖（closeTab 定义在本 hook 之前）。
+  // 工作区作用域（tabs / folder）与会话无关标签，始终保留；doc 作用域只保留存活标签。
   const aliveKey = (aliveTabIds || []).join('|');
   useEffect(() => {
     const alive = new Set(aliveTabIds || []);
@@ -212,14 +329,23 @@ export function useAiChat({
       const next = {};
       let dropped = false;
       for (const id of Object.keys(prev)) {
-        // 无文档会话不属于任何标签，必须显式保留，否则一打开文档就被清掉。
-        if (id === NO_DOC_KEY || alive.has(id)) next[id] = prev[id];
-        else dropped = true;
+        if (id === NO_DOC_KEY || id === 'tabs' || id === 'folder' || alive.has(id)) {
+          next[id] = prev[id];
+          continue;
+        }
+        if (id.startsWith('doc:')) {
+          const suffix = id.slice(4);
+          if (suffix === NO_DOC_KEY || alive.has(suffix)) {
+            next[id] = prev[id];
+            continue;
+          }
+        }
+        dropped = true;
       }
       return dropped ? next : prev;
     });
   }, [aliveKey]);
 
-  const current = sessions[getTabId() || NO_DOC_KEY] || emptySession();
-  return { session: current, send, stop, setInput, clear };
+  const current = sessions[scopeSessionKey(getScope ? getScope() : 'doc', getTabId() || NO_DOC_KEY)] || emptySession();
+  return { session: current, send, stop, setInput, clear, runPreset };
 }

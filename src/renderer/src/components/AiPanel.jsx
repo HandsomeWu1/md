@@ -38,6 +38,13 @@ const ICONS = {
 // 由用户在正文的高亮标注上确认取舍。
 function applyNote(apply) {
   if (!apply) return null;
+  // 工作区改写：一次可能改多个文件，逐个列出成败
+  if (apply.files) {
+    const parts = apply.files.map((f) => (f.ok ? f.target : `${f.target}（失败：${f.reason || ''}）`));
+    return apply.ok
+      ? `已改写 ${apply.files.length} 个文件：${parts.join('、')}`
+      : `部分文件未写入：${parts.join('、')}`;
+  }
   if (!apply.ok) return apply.reason || '未写入文档';
   if (apply.coarse) return '已改写文档（文档较大，未逐段标注）';
   const parts = [];
@@ -158,6 +165,8 @@ export default function AiPanel({
   configured,
   canRewrite,
   hasDocument,
+  scope,
+  onScopeChange,
   session,
   onSend,
   onStop,
@@ -203,7 +212,8 @@ export default function AiPanel({
   }, [getSelection]);
 
   // 有选区时提示改写将被限制在选区内——这会实际改变发给模型的指令，值得显式告知。
-  const hasSelection = canRewrite && !selectionInfo.empty && !!selectionInfo.text;
+  // 工作区作用域按文件名定位改写目标，选区不是改写目标，因此不提示。
+  const hasSelection = scope === 'doc' && canRewrite && !selectionInfo.empty && !!selectionInfo.text;
 
   const onKeyDown = useCallback(
     (e) => {
@@ -273,9 +283,14 @@ export default function AiPanel({
                 <>
                   {!!(m.reasoning || '').trim() && <ThinkingBlock text={m.reasoning.trim()} streaming={false} />}
                   {m.kind === 'rewrite' ? (
-                    <div className="ai-rewrite-status">
-                      <span className={m.apply && !m.apply.ok ? 'ai-note error' : undefined}>{applyNote(m.apply)}</span>
-                    </div>
+                    <>
+                      {m.content ? (
+                        <div className="ai-md" dangerouslySetInnerHTML={{ __html: renderAiMarkdown(m.content) }} />
+                      ) : null}
+                      <div className="ai-rewrite-status">
+                        <span className={m.apply && !m.apply.ok ? 'ai-note error' : undefined}>{applyNote(m.apply)}</span>
+                      </div>
+                    </>
                   ) : m.content ? (
                     <div className="ai-md" dangerouslySetInnerHTML={{ __html: renderAiMarkdown(m.content) }} />
                   ) : null}
@@ -291,12 +306,30 @@ export default function AiPanel({
         )}
       </div>
 
+      <div className="ai-scope-switch">
+        <button type="button" className={scope === 'doc' ? 'active' : ''} onClick={() => onScopeChange('doc')}>
+          当前文档
+        </button>
+        <button type="button" className={scope === 'tabs' ? 'active' : ''} onClick={() => onScopeChange('tabs')}>
+          已打开文件
+        </button>
+        <button type="button" className={scope === 'folder' ? 'active' : ''} onClick={() => onScopeChange('folder')}>
+          整个文件夹
+        </button>
+      </div>
+
       <div className="ai-composer">
         <textarea
           className="ai-input"
           rows={3}
           value={input}
-          placeholder={hasDocument ? '提问，或要求修改文档（如：把这段改简洁）' : '提问…'}
+          placeholder={
+            scope === 'doc'
+              ? hasDocument
+                ? '提问，或要求修改文档（如：把这段改简洁）'
+                : '提问…'
+              : '基于工作区文件提问，或要求修改其中某个文件'
+          }
           onChange={(e) => onInputChange(e.target.value)}
           onCompositionStart={() => {
             composingRef.current = true;
