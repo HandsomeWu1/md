@@ -102,9 +102,8 @@ const InnerEditor = forwardRef(function InnerEditor({ initialValue, onChange, on
     return () => cancelAnimationFrame(id);
   }, [loading]);
 
-  // 点击编辑器容器空白区域（ProseMirror 内容之外）时：
-  //   - 空文档（无任何内容）→ 光标定位到第一行（开头）
-  //   - 有内容的文档 → 光标定位到末尾（最后一行），而不是跳回页头
+  // 点击编辑器容器空白区域（ProseMirror 内容之外）时，把光标定位到离点击处最近的位置。
+  // 关键：不要调用 .scrollIntoView()，否则点顶部空白会把页面强制滚到底部（表现为“下拉一下”）。
   // Milkdown 空文档只有一个空段落，contentDOM 高度只有一行，导致下方大片空白不可点击。
   const handleContainerClick = useCallback(
     (e) => {
@@ -115,18 +114,18 @@ const InnerEditor = forwardRef(function InnerEditor({ initialValue, onChange, on
       ed.action((ctx) => {
         const view = ctx.get(editorViewCtx);
         if (!view) return;
-        view.focus();
+        // 用 preventScroll 聚焦，避免浏览器把编辑器滚进视口（点顶部空白会“下拉一下”）
+        view.dom.focus({ preventScroll: true });
         const { doc } = view.state;
-        const isEmpty = doc.textContent.trim() === '';
-        let sel;
-        if (isEmpty) {
+        if (doc.textContent.trim() === '') {
           // 空文档：定位到开头（第一行）
-          sel = TextSelection.create(doc, 1);
-        } else {
-          // 有内容：定位到文档末尾（最后一行），点击下方空白不应跳回页头
-          sel = TextSelection.near(doc.resolve(doc.content.size), 1);
+          view.dispatch(view.state.tr.setSelection(TextSelection.create(doc, 1)));
+          return;
         }
-        view.dispatch(view.state.tr.setSelection(sel).scrollIntoView());
+        // 有内容：用点击坐标定位到离点击处最近的文档位置（点顶部→顶部，点底部→底部），不强制滚动
+        const coords = view.posAtCoords({ left: e.clientX, top: e.clientY });
+        const pos = coords ? coords.pos : doc.content.size;
+        view.dispatch(view.state.tr.setSelection(TextSelection.near(doc.resolve(pos), 1)));
       });
     },
     []
