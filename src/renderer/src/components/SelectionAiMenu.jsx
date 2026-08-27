@@ -1,4 +1,5 @@
 import { createPortal } from 'react-dom';
+import { useLayoutEffect, useRef, useState } from 'react';
 
 // 选区浮动 AI 菜单的快捷动作。指令都要求模型「只输出改写后的选中内容」，
 // 由 useAiChat 的 runPreset 强制按选区改写应用（保留 ```mermaid 围栏以渲染图表）。
@@ -36,11 +37,41 @@ export const AI_SELECTION_PRESETS = [
 ];
 
 export default function SelectionAiMenu({ rect, onAction, onClose }) {
+  const menuRef = useRef(null);
+  // 钳制到视口内：选中文本在边缘时，菜单可能超出界面导致看不到 / 点不到。
+  // useLayoutEffect 在绘制前同步计算，避免先闪到越界位置。
+  const [pos, setPos] = useState(rect);
+  useLayoutEffect(() => {
+    if (!rect) {
+      setPos(null);
+      return;
+    }
+    const el = menuRef.current;
+    if (!el) {
+      setPos(rect);
+      return;
+    }
+    const m = el.getBoundingClientRect();
+    const margin = 8;
+    const vw = window.innerWidth;
+    const vh = window.innerHeight;
+    let left = rect.left;
+    let top = rect.top;
+    // 水平：右溢出则左移；仍放不下（菜单比视口还宽）则贴左边界。
+    if (left + m.width > vw - margin) left = Math.max(margin, vw - margin - m.width);
+    if (left < margin) left = margin;
+    // 垂直：底部溢出则翻到选区上方；仍放不下则贴顶。
+    if (top + m.height > vh - margin) top = Math.max(margin, rect.top - m.height - margin);
+    if (top < margin) top = margin;
+    setPos({ left, top });
+  }, [rect]);
+
   if (!rect) return null;
   const menu = (
     <div
+      ref={menuRef}
       className="ai-sel-menu"
-      style={{ position: 'fixed', left: rect.left, top: rect.top }}
+      style={{ position: 'fixed', left: (pos || rect).left, top: (pos || rect).top }}
       onMouseDown={(e) => e.preventDefault()}
     >
       {AI_SELECTION_PRESETS.map((p) => (

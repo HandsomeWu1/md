@@ -148,6 +148,7 @@ export function useAiChat({
       ],
     }));
 
+    try {
     const res = await api.aiChat({ requestId, messages: payloadMessages });
     ownerRef.current.delete(requestId);
 
@@ -267,7 +268,17 @@ export function useAiChat({
           error: res && res.canceled ? '已取消' : (res && res.error) || '请求失败',
         };
       }),
-    }));
+    });
+    } catch (err) {
+      // 任何一步（意图解析 / 改写落地 / 结果组装）抛错都不能让会话卡在「发送中」——
+      // 否则停止按钮一直显示、无法继续对话。兜底把会话拉回空闲并记录错误。
+      patchSession(key, (s) => ({
+        busy: false,
+        messages: s.messages.map((m) =>
+          m.id === requestId ? { ...m, pending: false, error: (err && err.message) || 'AI 请求失败' } : m
+        ),
+      }));
+    }
   }, [
     sessions,
     getScope,
@@ -304,10 +315,22 @@ export function useAiChat({
     const scope = getScope ? getScope() : 'doc';
     const key = scopeSessionKey(scope, getTabId() || NO_DOC_KEY);
     // 找出该会话正在进行的请求并中止。
+    let found = false;
     for (const [requestId, owner] of ownerRef.current.entries()) {
-      if (owner === key) api.aiAbort(requestId);
+      if (owner === key) {
+        api.aiAbort(requestId);
+        found = true;
+      }
     }
-  }, [getScope, getTabId]);
+    // 乐观复位：即便底层 abort 因端点差异延迟生效，也立即把会话拉回空闲，
+    // 让停止按钮变回发送、用户可继续操作；进行中的消息标记为已取消。
+    if (found) {
+      patchSession(key, (s) => ({
+        busy: false,
+        messages: s.messages.map((m) => (m.pending ? { ...m, pending: false, error: '已取消' } : m)),
+      }));
+    }
+  }, [getScope, getTabId, patchSession]);
 
   const setInput = useCallback(
     (v) => patchSession(scopeSessionKey(getScope ? getScope() : 'doc', getTabId() || NO_DOC_KEY), { input: v }),
