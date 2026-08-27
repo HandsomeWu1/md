@@ -101,8 +101,10 @@ export default function AiSettingsDialog({ open, onClose }) {
     setFetchErr('');
     setFetching(true);
     try {
-      const { models } = await window.api.aiListModels({ baseUrl: url, apiKey: key });
-      if (!models.length) throw new Error('该服务未返回可用模型');
+      const result = await window.api.aiListModels({ baseUrl: url, apiKey: key });
+      if (!result || !result.ok) throw new Error(result?.error || '获取模型列表失败');
+      const models = result.models || [];
+      if (!models.length) throw new Error('该服务未返回可识别的模型列表');
       setFetchedModels(models);
       setSelectedFetched(new Set(models)); // 默认全选
     } catch (err) {
