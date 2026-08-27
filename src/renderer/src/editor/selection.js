@@ -52,8 +52,10 @@ export function getActiveFormats(ctx) {
   result.inlineCode = markActive('inline_code');
   result.link = markActive('link');
 
-  // 选区处的字号：从光标/选区已有的 fontSize 标记读取
+  // 选区处的字号：优先读显式 fontSize 标记；否则测量光标处文本的真实渲染尺寸。
+  // 标题等因 CSS（em）缩放会明显变大，若只用标记会退化成 13，造成显示误导。
   const fontSizeType = state.schema.marks.fontSize;
+  let explicitSize = null;
   if (fontSizeType) {
     let mark = null;
     if (empty) {
@@ -63,8 +65,21 @@ export function getActiveFormats(ctx) {
       const at = state.doc.resolve(from + 1).marks().find((m) => m.type === fontSizeType);
       mark = at || null;
     }
-    result.fontSize = mark ? Number(mark.attrs.size) : null;
+    explicitSize = mark ? Number(mark.attrs.size) : null;
   }
+  let effectiveSize = null;
+  try {
+    const dom = view.domAtPos(from);
+    // domAtPos 可能返回文本节点，取其父元素才能得到块级字号
+    const el = dom.node.nodeType === 3 ? dom.node.parentElement : dom.node;
+    if (el && el.style) {
+      const px = parseFloat(window.getComputedStyle(el).fontSize);
+      if (!Number.isNaN(px) && px > 0) effectiveSize = Math.round(px);
+    }
+  } catch {
+    effectiveSize = null;
+  }
+  result.fontSize = explicitSize != null ? explicitSize : effectiveSize;
 
   // 块类型：从最内层父节点向上遍历
   for (let d = $from.depth; d >= 1; d--) {
