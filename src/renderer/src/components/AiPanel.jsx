@@ -1,6 +1,7 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { renderAiMarkdown } from '../utils/aiMarkdown';
-import { parseAiReply } from '../utils/aiPrompt';
+import { parseAiReply, splitThinking } from '../utils/aiPrompt';
+import { formatUsage } from '../utils/aiUsage';
 
 const ICONS = {
   // 滑块式设置图标（齿轮容易被误认成太阳，改用调节滑块更清晰）
@@ -52,30 +53,97 @@ function applyNote(apply) {
     : '模型返回的内容与原文一致，文档未改动（可换个说法再试）';
 }
 
-// 流式期间的呈现：意图未明时只显示「思考中」，避免先闪出半个协议标记。
-function StreamingBody({ content }) {
-  const parsed = parseAiReply(content);
-  if (parsed.kind === 'rewrite') {
-    return (
-      <div className="ai-rewrite-status">
-        <span>正在改写文档…（已生成 {parsed.text.length} 字）</span>
-        <span className="ai-caret" />
-      </div>
-    );
-  }
-  if (parsed.kind === 'chat' && parsed.text) {
-    return (
-      <>
-        <div className="ai-md" dangerouslySetInnerHTML={{ __html: renderAiMarkdown(parsed.text) }} />
-        <span className="ai-caret" />
-      </>
-    );
-  }
+/**
+ * 思考过程折叠块。
+ *
+ * 生成中自动展开（能看到模型在想什么才有意义），生成结束后自动折叠
+ * （思考过程通常很长，长期占据面板会把真正的回答挤出视野）。
+ * 用户一旦手动点过，就尊重其选择，不再自动改变状态。
+ */
+function ThinkingBlock({ text, streaming }) {
+  const [expanded, setExpanded] = useState(streaming);
+  const touchedRef = useRef(false);
+  const bodyRef = useRef(null);
+
+  useEffect(() => {
+    if (!touchedRef.current) setExpanded(streaming);
+  }, [streaming]);
+
+  // 展开且流式进行中时保持贴底，让最新的思考可见。
+  useEffect(() => {
+    if (expanded && streaming && bodyRef.current) {
+      bodyRef.current.scrollTop = bodyRef.current.scrollHeight;
+    }
+  }, [text, expanded, streaming]);
+
   return (
-    <div className="ai-rewrite-status">
-      <span className="ai-thinking">思考中</span>
-      <span className="ai-caret" />
+    <div className="ai-think">
+      <button
+        type="button"
+        className="ai-think-toggle"
+        onClick={() => {
+          touchedRef.current = true;
+          setExpanded((v) => !v);
+        }}
+        aria-expanded={expanded}
+      >
+        <svg
+          className={'ai-think-caret' + (expanded ? ' open' : '')}
+          width="9"
+          height="9"
+          viewBox="0 0 12 12"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="1.6"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        >
+          <path d="M4 2.5l4 3.5-4 3.5" />
+        </svg>
+        {streaming ? <span className="ai-thinking">思考中</span> : `已深度思考（${text.length} 字）`}
+      </button>
+      {expanded && (
+        <div className="ai-think-body" ref={bodyRef}>
+          {text}
+        </div>
+      )}
     </div>
+  );
+}
+
+/**
+ * 流式期间的呈现：意图未明时只显示等待态，避免先闪出半个协议标记。
+ * 思考过程可能来自独立字段，也可能嵌在正文的 <think> 块里，两者都要能显示。
+ */
+function StreamingBody({ content, reasoning }) {
+  const split = splitThinking(content);
+  const thinking = (reasoning || '').trim() || split.thinking;
+  const body = reasoning ? content : split.rest;
+  const parsed = parseAiReply(body);
+
+  return (
+    <>
+      {!!thinking.trim() && <ThinkingBlock text={thinking} streaming />}
+      {parsed.kind === 'rewrite' ? (
+        <div className="ai-rewrite-status">
+          <span>正在改写文档…（已生成 {parsed.text.length} 字）</span>
+          <span className="ai-caret" />
+        </div>
+      ) : parsed.kind === 'chat' && parsed.text ? (
+        <>
+          <div className="ai-md" dangerouslySetInnerHTML={{ __html: renderAiMarkdown(parsed.text) }} />
+          <span className="ai-caret" />
+        </>
+      ) : (
+        // 已经在输出思考时就不必再显示一个「思考中」，避免重复。
+        !thinking.trim() && (
+          <div className="ai-rewrite-status">
+            <span className="ai-thinking">思考中</span>
+            <span className="ai-caret" />
+          </div>
+        )
+      )}
+    </>
   );
 }
 
@@ -84,10 +152,12 @@ function StreamingBody({ content }) {
  * 会话状态由 useAiChat 按文档持有，本组件只负责呈现与输入。
  *
  * 没有「对话 / 改写」模式开关：由模型自行判断意图，只有它明确要求改写时才动文档。
+ * 没有打开文档时同样可以对话，此时模型已被告知不能改写。
  */
 export default function AiPanel({
   configured,
   canRewrite,
+  hasDocument,
   session,
   onSend,
   onStop,
@@ -151,7 +221,7 @@ export default function AiPanel({
       <div className="ai-header">
         <span className="ai-title">AI</span>
         <div className="spacer" />
-        <button type="button" className="ai-icon-btn" onClick={onClear} title="清空当前文档的对话" disabled={!messages.length}>
+        <button type="button" className="ai-icon-btn" onClick={onClear} title="清空当前对话" disabled={!messages.length}>
           {ICONS.clear}
         </button>
         <button type="button" className="ai-icon-btn" onClick={onOpenSettings} title="AI 设置">
@@ -165,7 +235,14 @@ export default function AiPanel({
       <div className="ai-messages" ref={listRef}>
         {!messages.length && (
           <div className="ai-empty">
-            {configured ? (
+            {!configured ? (
+              <>
+                <p>尚未配置模型。</p>
+                <button type="button" className="ai-link-btn" onClick={onOpenSettings}>
+                  填写 API 地址与 Key
+                </button>
+              </>
+            ) : hasDocument ? (
               <>
                 <p>提问，或直接让 AI 修改文档。</p>
                 <p className="ai-empty-hint">
@@ -175,10 +252,8 @@ export default function AiPanel({
               </>
             ) : (
               <>
-                <p>尚未配置模型。</p>
-                <button type="button" className="ai-link-btn" onClick={onOpenSettings}>
-                  填写 API 地址与 Key
-                </button>
+                <p>可以直接开始提问。</p>
+                <p className="ai-empty-hint">当前没有打开文档，AI 只会对话；打开或新建文档后即可让它帮你修改内容。</p>
               </>
             )}
           </div>
@@ -193,15 +268,24 @@ export default function AiPanel({
             <div key={m.id} className="ai-msg ai-msg-assistant">
               {m.truncated && <div className="ai-note">文档过长，已省略中间部分后发送。</div>}
               {m.pending ? (
-                <StreamingBody content={m.content} />
-              ) : m.kind === 'rewrite' ? (
-                <div className="ai-rewrite-status">
-                  <span className={m.apply && !m.apply.ok ? 'ai-note error' : undefined}>{applyNote(m.apply)}</span>
-                </div>
-              ) : m.content ? (
-                <div className="ai-md" dangerouslySetInnerHTML={{ __html: renderAiMarkdown(m.content) }} />
-              ) : null}
+                <StreamingBody content={m.content} reasoning={m.reasoning} />
+              ) : (
+                <>
+                  {!!(m.reasoning || '').trim() && <ThinkingBlock text={m.reasoning.trim()} streaming={false} />}
+                  {m.kind === 'rewrite' ? (
+                    <div className="ai-rewrite-status">
+                      <span className={m.apply && !m.apply.ok ? 'ai-note error' : undefined}>{applyNote(m.apply)}</span>
+                    </div>
+                  ) : m.content ? (
+                    <div className="ai-md" dangerouslySetInnerHTML={{ __html: renderAiMarkdown(m.content) }} />
+                  ) : null}
+                </>
+              )}
               {m.error && <div className="ai-note error">{m.error}</div>}
+              {/* 用量：服务端返回 usage 才显示；金额需在设置里填过单价 */}
+              {!m.pending && m.usage && (
+                <div className="ai-usage">{formatUsage(m.usage, m.price, m.price && m.price.currency)}</div>
+              )}
             </div>
           )
         )}
@@ -212,7 +296,7 @@ export default function AiPanel({
           className="ai-input"
           rows={3}
           value={input}
-          placeholder="提问，或要求修改文档（如：把这段改简洁）"
+          placeholder={hasDocument ? '提问，或要求修改文档（如：把这段改简洁）' : '提问…'}
           onChange={(e) => onInputChange(e.target.value)}
           onCompositionStart={() => {
             composingRef.current = true;

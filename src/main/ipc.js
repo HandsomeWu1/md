@@ -174,16 +174,18 @@ function registerIpc() {
   ipcMain.handle('ai:chat', async (e, payload) => {
     const { requestId, messages } = payload || {};
     try {
-      const { content } = await aiService.chat({
+      const { content, reasoning, usage } = await aiService.chat({
         requestId,
         messages,
+        // delta 形如 { content } 或 { reasoning }，原样转发让渲染层分流到
+        // 正文与「思考过程」两处，不在这里做拼接。
         onDelta: (delta) => {
           if (!e.sender.isDestroyed()) {
-            e.sender.send('ai:chunk', { requestId, delta });
+            e.sender.send('ai:chunk', { requestId, ...delta });
           }
         },
       });
-      return { ok: true, content };
+      return { ok: true, content, reasoning, usage };
     } catch (err) {
       return { ok: false, error: err.message, canceled: !!err.canceled };
     }

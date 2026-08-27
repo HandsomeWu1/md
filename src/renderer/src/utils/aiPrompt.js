@@ -65,6 +65,68 @@ export function stripCodeFence(text) {
 }
 
 /**
+ * 从正文中剥离 <think>…</think> 形式的思考过程。**流式安全**。
+ *
+ * 为什么需要它：思考过程有两种传递方式——规范做法是独立的 reasoning_content
+ * 字段（DeepSeek 官方 API），但许多本地部署、蒸馏版模型和中转服务会把思考
+ * 直接嵌在 content 里用 <think> 包裹。不剥离的话用户会看到一堆标签原文，
+ * 更严重的是 %%REWRITE%% 标记会被挤到思考之后，导致改写意图无法识别。
+ *
+ * 流式要点：SSE 可能把标签本身切成多个 chunk（先到 `<t`，再到 `hink>`）。
+ * 因此「内容还只是标签的一部分」也必须识别出来并按未闭合处理，
+ * 否则残缺标签会被当成正文闪现给用户。
+ *
+ * @returns {{ thinking: string, rest: string, thinkingOpen: boolean }}
+ *   thinkingOpen 为 true 表示思考还没结束（流式进行中）
+ */
+const OPEN_TAGS = ['<thinking>', '<think>'];
+const CLOSE_TAGS = ['</thinking>', '</think>'];
+
+// 判断 text 是否是任一候选标签的**不完整前缀**（用于识别「标签正在到达」）。
+function isPartialTag(text, tags) {
+  const lower = text.toLowerCase();
+  return tags.some((tag) => tag.startsWith(lower) && lower.length < tag.length);
+}
+
+// 找出结尾处可能是闭合标签前缀的长度，剥掉它，避免思考文本末尾闪现 `</thi`。
+function trailingPartialLen(text) {
+  const lower = text.toLowerCase();
+  for (let len = Math.min(CLOSE_TAGS[0].length - 1, lower.length); len > 0; len--) {
+    const tailStr = lower.slice(lower.length - len);
+    if (CLOSE_TAGS.some((tag) => tag.startsWith(tailStr))) return len;
+  }
+  return 0;
+}
+
+export function splitThinking(raw) {
+  const s = raw || '';
+  const leading = s.replace(/^\s+/, '');
+
+  // 开标签尚未收全：暂不产出任何正文，等后续 chunk。
+  if (leading.startsWith('<') && isPartialTag(leading, OPEN_TAGS)) {
+    return { thinking: '', rest: '', thinkingOpen: true };
+  }
+
+  const openTag = /<think(?:ing)?>/i;
+  const m = openTag.exec(s);
+  // 思考块必须在最前面（前面只能有空白），否则正文里提到该标签会被误当思考。
+  if (!m || s.slice(0, m.index).trim()) return { thinking: '', rest: s, thinkingOpen: false };
+
+  const after = s.slice(m.index + m[0].length);
+  const closeMatch = /<\/think(?:ing)?>/i.exec(after);
+  if (!closeMatch) {
+    // 还没收到闭合标签：全部内容都还是思考，但要剥掉结尾可能残缺的闭标签。
+    const cut = trailingPartialLen(after);
+    return { thinking: cut ? after.slice(0, after.length - cut) : after, rest: '', thinkingOpen: true };
+  }
+  return {
+    thinking: after.slice(0, closeMatch.index),
+    rest: after.slice(closeMatch.index + closeMatch[0].length).replace(/^\s*\n/, ''),
+    thinkingOpen: false,
+  };
+}
+
+/**
  * 解析模型回复，判断这是对话还是改写。**流式安全**：可用未收完的内容反复调用。
  *
  * @param {string} raw 已收到的回复内容（可能不完整）

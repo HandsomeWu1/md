@@ -25,6 +25,11 @@ export function installMockApi() {
     aiModel: '',
     aiTemperature: 0.3,
     aiMaxContextChars: 60000,
+    aiSystemPrompt: '',
+    aiPriceIn: 0,
+    aiPriceOut: 0,
+    aiPriceCached: 0,
+    aiCurrency: '¥',
   };
 
   window.api = {
@@ -125,23 +130,66 @@ export function installMockApi() {
       // 改写回复必须带上协议标记，与真实模型的输出格式保持一致。
       // 清空指令按协议在标记后留空正文。
       const full = isRewrite ? (wantsClear ? '%%REWRITE%%\n' : `%%REWRITE%%\n${buildRewrite()}`) : chatReply;
-      let content = '';
+
+      // 模拟思考过程。两种传递方式都要能验证：
+      // - 用户输入含「think标签」→ 走 content 内嵌 <think>（本地/中转模型常见）
+      // - 否则走独立的 reasoning 字段（DeepSeek 官方 API 的方式）
+      const useThinkTag = /think标签|thinktag/i.test(userText);
+      const reasoningText = /不思考|无思考/.test(userText)
+        ? ''
+        : '先判断用户意图：这句话' +
+          (isRewrite ? '明确要求修改文档，应当使用改写方式。' : '属于提问或寒暄，不涉及修改文档，用对话方式回答。') +
+          '再检查是否有选中片段，以确定改写范围。';
+
+      const emit = (payload) => aiChunkSubs.forEach((cb) => cb({ requestId, ...payload }));
+      const canceled = () => {
+        if (!aiAborted.has(requestId)) return false;
+        aiAborted.delete(requestId);
+        return true;
+      };
       // 按 6~10 字符切片模拟流式，每片延时让渲染层能看到渐进效果。
-      let i = 0;
-      while (i < full.length) {
-        const step = 6 + Math.floor(Math.random() * 5);
-        const delta = full.slice(i, i + step);
-        i += step;
-        // 发送前检查是否已被取消：若是则清理标记并立即返回取消结果。
-        if (aiAborted.has(requestId)) {
-          aiAborted.delete(requestId);
+      const stream = async (text, key) => {
+        let i = 0;
+        while (i < text.length) {
+          const step = 6 + Math.floor(Math.random() * 5);
+          const delta = text.slice(i, i + step);
+          i += step;
+          if (canceled()) return false;
+          await new Promise((r) => setTimeout(r, 40));
+          emit({ [key]: delta });
+        }
+        return true;
+      };
+
+      let content = '';
+      if (reasoningText && !useThinkTag) {
+        if (!(await stream(reasoningText, 'reasoning'))) {
           return { ok: false, error: '已取消', canceled: true };
         }
-        await new Promise((r) => setTimeout(r, 40));
-        content += delta;
-        aiChunkSubs.forEach((cb) => cb({ requestId, delta }));
       }
-      return { ok: true, content };
+      const body = reasoningText && useThinkTag ? `<think>${reasoningText}</think>\n${full}` : full;
+      if (!(await stream(body, 'content'))) {
+        return { ok: false, error: '已取消', canceled: true };
+      }
+      content = body;
+
+      // 模拟 usage（真实服务需 stream_options.include_usage 才会返回）。
+      const prompt = Math.round(systemText.length / 2) + Math.round(userText.length / 2) + 40;
+      const completion = Math.round(content.length / 2) + 12;
+      const cacheHit = Math.min(prompt, 64);
+      return {
+        ok: true,
+        content,
+        reasoning: useThinkTag ? '' : reasoningText,
+        usage: {
+          prompt,
+          completion,
+          total: prompt + completion,
+          cacheHit,
+          cacheMiss: prompt - cacheHit,
+          reasoning: reasoningText && !useThinkTag ? Math.round(reasoningText.length / 2) : undefined,
+        },
+      };
     },
   };
 }

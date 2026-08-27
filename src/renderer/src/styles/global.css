@@ -2693,3 +2693,88 @@ body {
   opacity: 0.4;
   cursor: default;
 }
+
+/* ===== 思考过程（可折叠） ===== */
+.ai-think {
+  margin-bottom: 8px;
+}
+.ai-think-toggle {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 2px 0;
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 11.5px;
+  cursor: pointer;
+}
+.ai-think-toggle:hover {
+  color: var(--text-secondary);
+}
+.ai-think-caret {
+  flex: 0 0 auto;
+  transition: transform 0.15s ease;
+}
+.ai-think-caret.open {
+  transform: rotate(90deg);
+}
+.ai-think-body {
+  margin-top: 5px;
+  padding: 7px 10px;
+  /* 思考过程往往很长，限高并可滚动，避免把真正的回答挤出视野 */
+  max-height: 200px;
+  overflow-y: auto;
+  border-left: 2px solid var(--border);
+  color: var(--text-muted);
+  font-size: 11.5px;
+  line-height: 1.7;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+/* ===== Token 用量 ===== */
+.ai-usage {
+  margin-top: 6px;
+  font-size: 11px;
+  color: var(--text-muted);
+  opacity: 0.75;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ===== 计费单价 ===== */
+.ai-price {
+  margin-top: 14px;
+}
+.ai-price-title {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin-bottom: 6px;
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+.ai-price-unit {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+.ai-price-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+.ai-price-grid label {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+.ai-price-grid label > span {
+  flex: 0 0 52px;
+  font-size: 11.5px;
+  color: var(--text-muted);
+}
+.ai-price-grid .modal-input {
+  min-width: 0;
+  padding: 5px 8px;
+  font-size: 12px;
+}

@@ -13,7 +13,7 @@ import CodeView from './components/CodeView';
 import AiPanel from './components/AiPanel';
 import AiSettingsDialog from './components/AiSettingsDialog';
 import DiffConfirmBar from './components/DiffConfirmBar';
-import { useAiChat } from './hooks/useAiChat';
+import { useAiChat, NO_DOC_KEY } from './hooks/useAiChat';
 import Editor from './editor/Editor';
 import { extractOutline, countWords, findInMarkdown, replaceAllInMarkdown } from './utils/markdown';
 import { buildExportHtml } from './utils/export';
@@ -625,6 +625,15 @@ export default function App() {
     return !!t && t.kind !== 'code';
   }, []);
   const aiGetSystemPrompt = useCallback(() => settingsRef.current.aiSystemPrompt || '', []);
+  const aiGetPrice = useCallback(() => {
+    const s = settingsRef.current;
+    return {
+      priceIn: s.aiPriceIn || 0,
+      priceOut: s.aiPriceOut || 0,
+      priceCached: s.aiPriceCached || 0,
+      currency: s.aiCurrency || '¥',
+    };
+  }, []);
 
   /**
    * 把 AI 改写结果写入文档，并在正文里标注改动位置。
@@ -635,6 +644,9 @@ export default function App() {
    */
   const applyAiRewrite = useCallback(
     ({ tabId, text, range, docSnapshot, cleared }) => {
+      // 无文档会话（NO_DOC_KEY）不对应任何标签，理论上模型已被告知不能改写，
+      // 但仍要防住它硬输出改写标记的情况。
+      if (tabId === NO_DOC_KEY) return { ok: false, reason: '没有打开的文档，未写入' };
       const t = tabsRef.current.find((x) => x.id === tabId);
       if (!t) return { ok: false, reason: '文档已关闭，未写入' };
       if (tabId !== activeTabIdRef.current) {
@@ -678,6 +690,7 @@ export default function App() {
     getMaxChars: aiGetMaxChars,
     getCanRewrite: aiGetCanRewrite,
     getSystemPrompt: aiGetSystemPrompt,
+    getPrice: aiGetPrice,
     applyRewrite: applyAiRewrite,
     aliveTabIds: tabs.map((t) => t.id),
   });
@@ -1126,6 +1139,7 @@ export default function App() {
           <AiPanel
             configured={aiConfigured}
             canRewrite={!!activeTab && activeTab.kind !== 'code'}
+            hasDocument={!!activeTab}
             session={ai.session}
             onSend={ai.send}
             onStop={ai.stop}

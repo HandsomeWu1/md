@@ -1,8 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { buildMessages, parseAiReply } from '../utils/aiPrompt';
+import { buildMessages, parseAiReply, splitThinking } from '../utils/aiPrompt';
 
 let seq = 0;
 const nextRequestId = () => `ai-${Date.now()}-${++seq}`;
+
+// 没有打开任何文档时也允许对话，此时会话挂在这个固定 key 上。
+// 用常量而非 null：会话状态的读写都以 key 为索引，null 会让 patchSession 无处落地。
+export const NO_DOC_KEY = '__no_document__';
 
 // 每个文档一个独立会话。
 const emptySession = () => ({ messages: [], input: '', busy: false });
@@ -25,13 +29,14 @@ export function useAiChat({
   getMaxChars,
   getCanRewrite,
   getSystemPrompt,
+  getPrice,
   applyRewrite,
   aliveTabIds,
 }) {
   const api = window.api;
   const [sessions, setSessions] = useState({});
 
-  // requestId → 发起它的 tabId。跨标签路由增量与结果都依赖这张表。
+  // requestId → 发起它的会话 key。跨标签路由增量与结果都依赖这张表。
   const ownerRef = useRef(new Map());
 
   const patchSession = useCallback((tabId, patch) => {
@@ -44,20 +49,29 @@ export function useAiChat({
 
   // 流式增量：按 requestId 找到所属会话再累加，因此用户切换标签时
   // 后台请求的内容不会串到别的文档里。
+  // reasoning 与 content 分开累加：思考过程要独立折叠展示，混在一起就没法区分了。
   useEffect(() => {
-    const off = api.onAiChunk(({ requestId, delta }) => {
+    const off = api.onAiChunk(({ requestId, content, reasoning }) => {
       const tabId = ownerRef.current.get(requestId);
       if (!tabId) return;
       patchSession(tabId, (s) => ({
-        messages: s.messages.map((m) => (m.id === requestId ? { ...m, content: m.content + delta } : m)),
+        messages: s.messages.map((m) =>
+          m.id === requestId
+            ? {
+                ...m,
+                content: content ? m.content + content : m.content,
+                reasoning: reasoning ? (m.reasoning || '') + reasoning : m.reasoning,
+              }
+            : m
+        ),
       }));
     });
     return off;
   }, [patchSession]);
 
   const send = useCallback(async () => {
-    const tabId = getTabId();
-    if (!tabId) return;
+    // 没有打开文档时用固定 key，让「先聊天再决定要不要建文档」成为可能。
+    const tabId = getTabId() || NO_DOC_KEY;
     const session = sessions[tabId] || emptySession();
     const prompt = (session.input || '').trim();
     if (!prompt || session.busy) return;
@@ -91,15 +105,21 @@ export function useAiChat({
       messages: [
         ...s.messages,
         { id: requestId + '-u', role: 'user', content: prompt },
-        { id: requestId, role: 'assistant', content: '', pending: true, truncated },
+        { id: requestId, role: 'assistant', content: '', reasoning: '', pending: true, truncated },
       ],
     }));
 
     const res = await api.aiChat({ requestId, messages: payloadMessages });
     ownerRef.current.delete(requestId);
 
+    // 思考过程有两条来路：独立的 reasoning 字段，或正文里的 <think> 块。
+    // 必须先剥离 <think> 再判断意图，否则 %%REWRITE%% 会被挤到思考之后而识别不到。
+    const split = res && res.ok ? splitThinking(res.content || '') : null;
+    const thinking = split ? split.thinking.trim() : '';
+    const body = split ? split.rest : '';
+
     // 意图由模型的回复决定：只有明确声明改写时才动文档，其余一律当对话。
-    const parsed = res && res.ok ? parseAiReply(res.content || '') : null;
+    const parsed = split ? parseAiReply(body) : null;
     const isRewrite = !!parsed && parsed.kind === 'rewrite';
     let applyInfo = null;
     if (isRewrite) {
@@ -120,16 +140,22 @@ export function useAiChat({
       }
     }
 
+    const price = getPrice ? getPrice() : null;
+
     patchSession(tabId, (s) => ({
       busy: false,
       messages: s.messages.map((m) => {
         if (m.id !== requestId) return m;
         if (res && res.ok) {
+          // reasoning 字段优先；没有则用从正文剥出的 <think> 内容。
+          const reasoning = (res.reasoning || '').trim() || thinking || m.reasoning || '';
+          const common = { reasoning, usage: res.usage || null, price: price || null };
           if (isRewrite) {
             // 改写结果已写进文档，面板不再展示全文，只留长度——
             // 否则多轮改写会把若干份全文长期留在内存里。
             return {
               ...m,
+              ...common,
               pending: false,
               kind: 'rewrite',
               content: '',
@@ -137,7 +163,7 @@ export function useAiChat({
               apply: applyInfo || undefined,
             };
           }
-          return { ...m, pending: false, kind: 'chat', content: parsed.text || res.content || m.content };
+          return { ...m, ...common, pending: false, kind: 'chat', content: parsed.text || body || m.content };
         }
         return {
           ...m,
@@ -154,21 +180,27 @@ export function useAiChat({
     getMaxChars,
     getCanRewrite,
     getSystemPrompt,
+    getPrice,
     applyRewrite,
     patchSession,
   ]);
 
   const stop = useCallback(() => {
-    const tabId = getTabId();
-    if (!tabId) return;
+    const tabId = getTabId() || NO_DOC_KEY;
     // 找出该会话正在进行的请求并中止。
     for (const [requestId, owner] of ownerRef.current.entries()) {
       if (owner === tabId) api.aiAbort(requestId);
     }
   }, [getTabId]);
 
-  const setInput = useCallback((v) => patchSession(getTabId(), { input: v }), [getTabId, patchSession]);
-  const clear = useCallback(() => patchSession(getTabId(), { messages: [] }), [getTabId, patchSession]);
+  const setInput = useCallback(
+    (v) => patchSession(getTabId() || NO_DOC_KEY, { input: v }),
+    [getTabId, patchSession]
+  );
+  const clear = useCallback(
+    () => patchSession(getTabId() || NO_DOC_KEY, { messages: [] }),
+    [getTabId, patchSession]
+  );
 
   // 标签关闭后回收其会话，避免长期占用内存。
   // 用存活标签集合被动回收，而不是让 closeTab 主动调用——后者会造成
@@ -180,13 +212,14 @@ export function useAiChat({
       const next = {};
       let dropped = false;
       for (const id of Object.keys(prev)) {
-        if (alive.has(id)) next[id] = prev[id];
+        // 无文档会话不属于任何标签，必须显式保留，否则一打开文档就被清掉。
+        if (id === NO_DOC_KEY || alive.has(id)) next[id] = prev[id];
         else dropped = true;
       }
       return dropped ? next : prev;
     });
   }, [aliveKey]);
 
-  const current = sessions[getTabId()] || emptySession();
+  const current = sessions[getTabId() || NO_DOC_KEY] || emptySession();
   return { session: current, send, stop, setInput, clear };
 }

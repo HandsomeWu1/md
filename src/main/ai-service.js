@@ -32,6 +32,40 @@ function buildModelsUrl(baseUrl) {
   return normalizeBase(baseUrl) + '/models';
 }
 
+// 错误响应也可能是 JSON，尽量取出可读的 error.message；
+// 取不到就用原文（截断）兜底，避免把整段 HTML 抛给用户。
+function toHttpError(status, raw) {
+  let msg = String(raw || '').slice(0, 300);
+  try {
+    const parsed = JSON.parse(raw);
+    if (parsed && parsed.error && parsed.error.message) msg = parsed.error.message;
+  } catch {}
+  return new Error(`AI 请求失败（${status}）：${msg}`);
+}
+
+async function httpError(res) {
+  return toHttpError(res.status, await res.text());
+}
+
+// 归一化 usage：各家字段名基本遵循 OpenAI，但 DeepSeek 等会额外给出缓存命中数。
+// 只保留渲染层需要的字段，且全部转成数字，避免字符串混入后计算出 NaN。
+function normalizeUsage(u) {
+  if (!u || typeof u !== 'object') return null;
+  const num = (v) => (Number.isFinite(Number(v)) ? Number(v) : 0);
+  const prompt = num(u.prompt_tokens ?? u.input_tokens);
+  const completion = num(u.completion_tokens ?? u.output_tokens);
+  const total = num(u.total_tokens) || prompt + completion;
+  if (!prompt && !completion && !total) return null;
+  const out = { prompt, completion, total };
+  // 缓存命中部分计费更低，单独带出来供费用估算使用。
+  if (u.prompt_cache_hit_tokens != null) out.cacheHit = num(u.prompt_cache_hit_tokens);
+  if (u.prompt_cache_miss_tokens != null) out.cacheMiss = num(u.prompt_cache_miss_tokens);
+  // 思考模型会单列推理 token（已包含在 completion 内，仅作展示）。
+  const reasoning = u.completion_tokens_details && u.completion_tokens_details.reasoning_tokens;
+  if (reasoning != null) out.reasoning = num(reasoning);
+  return out;
+}
+
 // 取消：主动 abort 与超时都要能被上层区分，便于 UI 呈现「已取消」而非「失败」。
 function makeCanceledError() {
   const err = new Error('已取消');
@@ -69,33 +103,75 @@ async function chat({ requestId, messages, onDelta }) {
   }, TIMEOUT_MS);
 
   let content = '';
+  let reasoning = '';
+  let usage = null;
   try {
     const url = buildChatUrl(s.aiBaseUrl);
-    const res = await fetch(url, {
-      method: 'POST',
-      signal: controller.signal,
-      headers: {
-        Authorization: 'Bearer ' + s.aiApiKey,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
+
+    // 单条 SSE 事件的处理逻辑。抽成闭包供主循环与末尾残留 buffer 复用，
+    // 避免两处解析逻辑漂移（早先版本就因此漏处理过 reasoning 字段）。
+    const handleData = (data) => {
+      let json;
+      try {
+        json = JSON.parse(data);
+      } catch {
+        // 部分服务会在数据行之间插入注释或非标准行，单条解析失败要静默跳过，
+        // 不能因为一行脏数据就让整个流崩溃。
+        return;
+      }
+      // usage 通常只在最后一个 chunk 出现（需 stream_options.include_usage）；
+      // 少数服务每个 chunk 都带，后到的更完整，直接覆盖即可。
+      if (json.usage) usage = json.usage;
+
+      const choice = json.choices && json.choices[0];
+      const delta = choice && choice.delta;
+      if (!delta) return;
+
+      // 思考过程的字段名各家不同：DeepSeek 用 reasoning_content，
+      // OpenRouter 等用 reasoning。两者都取，谁有取谁。
+      const rd = delta.reasoning_content || delta.reasoning;
+      if (rd) {
+        reasoning += rd;
+        if (typeof onDelta === 'function') onDelta({ reasoning: rd });
+      }
+      if (delta.content) {
+        content += delta.content;
+        if (typeof onDelta === 'function') onDelta({ content: delta.content });
+      }
+    };
+
+    const doFetch = (withUsage) => {
+      const body = {
         model: s.aiModel,
         messages,
         temperature: s.aiTemperature,
         stream: true,
-      }),
-    });
+      };
+      // 流式响应默认不含 usage，必须显式要求；但部分兼容端点不认识这个参数，
+      // 因此失败后会退回不带该参数重试（见下方 shouldRetryWithoutUsage）。
+      if (withUsage) body.stream_options = { include_usage: true };
+      return fetch(url, {
+        method: 'POST',
+        signal: controller.signal,
+        headers: {
+          Authorization: 'Bearer ' + s.aiApiKey,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(body),
+      });
+    };
 
+    let res = await doFetch(true);
     if (!res.ok) {
-      // 错误响应也可能是 JSON，尽量取出可读的 error.message；
-      // 取不到就用原文（截断）兜底，避免把整段 HTML 抛给用户。
       const raw = await res.text();
-      let msg = raw.slice(0, 300);
-      try {
-        const parsed = JSON.parse(raw);
-        if (parsed && parsed.error && parsed.error.message) msg = parsed.error.message;
-      } catch {}
-      throw new Error(`AI 请求失败（${res.status}）：${msg}`);
+      // 端点不支持 stream_options 时通常返回 400 且错误里提到该参数名。
+      // 这种情况静默重试一次（放弃 usage 统计），不让可选功能拖垮主流程。
+      if (res.status === 400 && /stream_options|include_usage|unknown|unsupported|extra field/i.test(raw)) {
+        res = await doFetch(false);
+        if (!res.ok) throw await httpError(res);
+      } else {
+        throw toHttpError(res.status, raw);
+      }
     }
 
     const decoder = new TextDecoder('utf-8');
@@ -119,19 +195,7 @@ async function chat({ requestId, messages, onDelta }) {
             done = true;
             break;
           }
-          // 部分服务会在数据行之间插入注释或非标准行，单条解析失败要静默跳过，
-          // 不能因为一行脏数据就让整个流崩溃。
-          let json;
-          try {
-            json = JSON.parse(data);
-          } catch {
-            continue;
-          }
-          const delta = json.choices && json.choices[0] && json.choices[0].delta && json.choices[0].delta.content;
-          if (delta) {
-            content += delta;
-            if (typeof onDelta === 'function') onDelta(delta);
-          }
+          handleData(data);
         }
         if (done) break;
       }
@@ -141,19 +205,10 @@ async function chat({ requestId, messages, onDelta }) {
     const tail = done ? '' : buffer.trim();
     if (tail.startsWith('data:')) {
       const data = tail.slice(5).trim();
-      if (data && data !== '[DONE]') {
-        try {
-          const json = JSON.parse(data);
-          const delta = json.choices && json.choices[0] && json.choices[0].delta && json.choices[0].delta.content;
-          if (delta) {
-            content += delta;
-            if (typeof onDelta === 'function') onDelta(delta);
-          }
-        } catch {}
-      }
+      if (data && data !== '[DONE]') handleData(data);
     }
 
-    return { content };
+    return { content, reasoning, usage: normalizeUsage(usage) };
   } catch (err) {
     if (err && err.name === 'AbortError') {
       // fetch 无论被谁 abort 都会抛出 AbortError；这里区分触发来源：

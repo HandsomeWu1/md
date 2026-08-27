@@ -31,6 +31,10 @@ export default function AiSettingsDialog({ open, settings, onSave, onCancel }) {
   const [listOpen, setListOpen] = useState(false);
   const [advancedOpen, setAdvancedOpen] = useState(false);
   const [systemPrompt, setSystemPrompt] = useState('');
+  const [priceIn, setPriceIn] = useState('');
+  const [priceOut, setPriceOut] = useState('');
+  const [priceCached, setPriceCached] = useState('');
+  const [currency, setCurrency] = useState('¥');
   const firstRef = useRef(null);
   const modelBoxRef = useRef(null);
 
@@ -44,6 +48,11 @@ export default function AiSettingsDialog({ open, settings, onSave, onCancel }) {
     setTemperature(Number.isFinite(t) ? Math.min(TEMP_MAX, Math.max(TEMP_MIN, t)) : 0.3);
     // 空值意味着"沿用默认"，此处展开成完整文本，让用户看到实际生效的内容再改。
     setSystemPrompt(settings.aiSystemPrompt || DEFAULT_SYSTEM_PROMPT);
+    // 单价为 0 时显示空串而不是 "0"，让「未设置」和「免费」在视觉上有区别。
+    setPriceIn(settings.aiPriceIn ? String(settings.aiPriceIn) : '');
+    setPriceOut(settings.aiPriceOut ? String(settings.aiPriceOut) : '');
+    setPriceCached(settings.aiPriceCached ? String(settings.aiPriceCached) : '');
+    setCurrency(settings.aiCurrency || '¥');
     setShowKey(false);
     setModels([]);
     setListState({ loading: false, error: '' });
@@ -93,12 +102,21 @@ export default function AiSettingsDialog({ open, settings, onSave, onCancel }) {
   const promptMissingMarker = !!promptTrimmed && !promptTrimmed.includes(REWRITE_MARKER);
 
   const submit = () => {
+    // 单价用 parseFloat 宽容解析：用户可能粘贴带货币符号或空格的数字。
+    const num = (v) => {
+      const n = parseFloat(String(v).replace(/[^\d.eE+-]/g, ''));
+      return Number.isFinite(n) && n > 0 ? n : 0;
+    };
     onSave({
       aiBaseUrl: baseUrl.trim(),
       aiApiKey: apiKey.trim(),
       aiModel: model.trim(),
       aiTemperature: temperature,
       aiSystemPrompt: promptIsDefault ? '' : systemPrompt,
+      aiPriceIn: num(priceIn),
+      aiPriceOut: num(priceOut),
+      aiPriceCached: num(priceCached),
+      aiCurrency: currency.trim() || '¥',
     });
   };
 
@@ -238,7 +256,7 @@ export default function AiSettingsDialog({ open, settings, onSave, onCancel }) {
             >
               <path d="M4 2.5l4 3.5-4 3.5" />
             </svg>
-            高级：System 提示词
+            高级：System 提示词与计费
             {!promptIsDefault && <span className="ai-advanced-badge">已自定义</span>}
           </button>
 
@@ -275,6 +293,62 @@ export default function AiSettingsDialog({ open, settings, onSave, onCancel }) {
                   自定义时请保留相关说明。留空保存则恢复为默认。
                 </div>
               )}
+
+              {/* 单价：用于把 token 用量折算成金额。API 不返回价格，只能手填 */}
+              <div className="ai-price">
+                <div className="ai-price-title">
+                  计费单价
+                  <span className="ai-price-unit">每百万 token</span>
+                </div>
+                <div className="ai-price-grid">
+                  <label>
+                    <span>输入</span>
+                    <input
+                      className="modal-input"
+                      type="text"
+                      inputMode="decimal"
+                      value={priceIn}
+                      placeholder="0"
+                      onChange={(e) => setPriceIn(e.target.value)}
+                    />
+                  </label>
+                  <label>
+                    <span>输出</span>
+                    <input
+                      className="modal-input"
+                      type="text"
+                      inputMode="decimal"
+                      value={priceOut}
+                      placeholder="0"
+                      onChange={(e) => setPriceOut(e.target.value)}
+                    />
+                  </label>
+                  <label>
+                    <span>缓存命中</span>
+                    <input
+                      className="modal-input"
+                      type="text"
+                      inputMode="decimal"
+                      value={priceCached}
+                      placeholder="可选"
+                      onChange={(e) => setPriceCached(e.target.value)}
+                    />
+                  </label>
+                  <label>
+                    <span>货币</span>
+                    <input
+                      className="modal-input"
+                      type="text"
+                      value={currency}
+                      maxLength={4}
+                      onChange={(e) => setCurrency(e.target.value)}
+                    />
+                  </label>
+                </div>
+                <div className="ai-field-note">
+                  留空则只显示 token 数、不换算金额。各家定价常有调整，故不内置价格表，请按服务商页面填写。
+                </div>
+              </div>
             </div>
           )}
         </div>

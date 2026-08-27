@@ -20,6 +20,12 @@ const DEFAULTS = {
   // 空字符串表示使用渲染层内置的默认提示词（默认值定义在 utils/aiPrompt.js，
   // 不在主进程重复一份，避免两处漂移）。
   aiSystemPrompt: '',
+  // 每百万 token 单价，用于估算费用。API 不返回价格，各家定价也常变，
+  // 因此由用户按需填写；为 0 时界面只显示 token 数、不显示金额。
+  aiPriceIn: 0,
+  aiPriceOut: 0,
+  aiPriceCached: 0,
+  aiCurrency: '¥',
 };
 
 class SettingsStore {
