@@ -26,9 +26,11 @@ const DEFAULTS = {
   aiPriceOut: 0,
   aiPriceCached: 0,
   aiCurrency: '¥',
-  // —— 多模型配置档案：可保存多个、点击切换（扁平 ai* 字段始终表示“当前生效”配置）——
-  aiProfiles: [],
-  aiActiveProfile: '',
+  // —— 多模型配置：每条 entry 是一个可选模型（含 API 地址/Key/模型名），
+  //   同一 API 可有多条 entry（如 DeepSeek Pro / Flash），下拉框里各显示一条。
+  //   扁平 ai* 字段始终表示"当前选中模型"的配置，供主进程直接读取。
+  aiModelEntries: [],
+  aiActiveModelId: '',
   };
 
 class SettingsStore {

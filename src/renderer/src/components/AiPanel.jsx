@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { renderAiMarkdown } from '../utils/aiMarkdown';
 import { parseAiReply, splitThinking } from '../utils/aiPrompt';
 import { formatUsage } from '../utils/aiUsage';
+import { settingsApi } from '../utils/settings';
 
 const ICONS = {
   // 滑块式设置图标（齿轮容易被误认成太阳，改用调节滑块更清晰）
@@ -33,6 +34,70 @@ const ICONS = {
     </svg>
   ),
 };
+
+// ── 模型选择器（对话框左下角内联下拉） ─────────────
+function ModelSelector({ onSelect }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef(null);
+  const [entries, setEntries] = useState([]);
+  const [activeId, setActiveId] = useState('');
+
+  useEffect(() => {
+    const s = settingsApi.get();
+    setEntries(s.aiModelEntries || []);
+    setActiveId(s.aiActiveModelId || '');
+  }, []);
+
+  // 外部点击关闭
+  useEffect(() => {
+    if (!open) return;
+    function handler(e) { if (ref.current && !ref.current.contains(e.target)) setOpen(false); }
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [open]);
+
+  const active = entries.find((e) => e.id === activeId);
+
+  function handleSelect(id) {
+    setActiveId(id);
+    settingsApi.set({ aiActiveModelId: id });
+    // 同步扁平字段
+    const e = entries.find((x) => x.id === id);
+    if (e) {
+      settingsApi.set({ aiBaseUrl: e.baseUrl, aiApiKey: e.apiKey, aiModel: e.model });
+    }
+    onSelect?.(id);
+    setOpen(false);
+  }
+
+  return (
+    <div className="ai-model-selector" ref={ref}>
+      <button className="ai-model-selector-btn" onClick={() => setOpen((v) => !v)} title="切换模型">
+        <span className="ai-model-selector-icon">{(active?.name || '?').charAt(0).toUpperCase()}</span>
+        <span className="ai-model-selector-name">{active?.name || '选择模型'}</span>
+        <span className="ai-model-selector-arrow">▾</span>
+      </button>
+      {open && (
+        <div className="ai-model-selector-dropdown">
+          {entries.length === 0 ? (
+            <div className="ai-model-selector-empty">暂无模型，请先在设置中添加</div>
+          ) : (
+            entries.map((e) => (
+              <button
+                key={e.id}
+                className={`ai-model-sel-item ${e.id === activeId ? 'active' : ''}`}
+                onClick={() => handleSelect(e.id)}
+              >
+                <span className="ai-model-sel-name">{e.name}</span>
+                <span className="ai-model-sel-id">{e.model}</span>
+              </button>
+            ))
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
 
 // 改写结果的落地状态文案。改写内容直接写进正文，面板里只报告结果，
 // 由用户在正文的高亮标注上确认取舍。
@@ -340,6 +405,7 @@ export default function AiPanel({
           onKeyDown={onKeyDown}
         />
         <div className="ai-composer-bar">
+          <ModelSelector />
           {hasSelection ? (
             <span className="ai-scope">仅改写选中的 {selectionInfo.text.length} 字</span>
           ) : (
