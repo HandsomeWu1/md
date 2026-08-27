@@ -1,6 +1,5 @@
 import React, { useRef, useState, useEffect } from 'react';
 import InputDialog from './InputDialog';
-import TablePicker from './TablePicker';
 
 // ===== 简洁线框 SVG 图标 =====
 const I = ({ children, viewBox = '0 0 16 16' }) => (
@@ -138,9 +137,6 @@ export default function Toolbar({ onAction, activeFormats = {}, headingNumbering
   const [linkOpen, setLinkOpen] = useState(false);
   const [linkText, setLinkText] = useState('');
   const [linkHref, setLinkHref] = useState('');
-  // 表格选择器状态
-  const [tablePickerOpen, setTablePickerOpen] = useState(false);
-  const tableBtnRef = useRef(null);
   // 公式弹窗：latex 内容 + 行内/行间模式
   const [mathOpen, setMathOpen] = useState(false);
   const [mathLatex, setMathLatex] = useState('');
@@ -209,18 +205,6 @@ export default function Toolbar({ onAction, activeFormats = {}, headingNumbering
         <ToolButton title="无序列表" icon={ICONS.bulletList} active={activeFormats.bulletList} onClick={() => onAction('bulletList')} />
         <ToolButton title="有序列表" icon={ICONS.orderedList} active={activeFormats.orderedList} onClick={() => onAction('orderedList')} />
         <ToolButton title="任务列表" icon={ICONS.taskList} active={activeFormats.taskList} onClick={() => onAction('taskList')} />
-        <ToolButton title="引用" icon={ICONS.blockquote} active={activeFormats.blockquote} onClick={() => onAction('blockquote')} />
-      </div>
-
-      <div className="tool-group">
-        <ToolButton title="代码块" icon={ICONS.codeBlock} active={activeFormats.codeBlock} onClick={() => onAction('codeBlock')} />
-        <ToolButton
-          title="插入表格"
-          icon={ICONS.table}
-          onClick={() => setTablePickerOpen(true)}
-          ref={tableBtnRef}
-        />
-        <ToolButton title="分割线" icon={ICONS.hr} onClick={() => onAction('hr')} />
       </div>
 
       <div className="tool-group">
@@ -310,14 +294,6 @@ export default function Toolbar({ onAction, activeFormats = {}, headingNumbering
           placeholder: '链接地址（如 https://example.com）',
           onChange: setLinkHref,
         }}
-      />
-
-      {/* 表格网格选择器 */}
-      <TablePicker
-        open={tablePickerOpen}
-        anchorRect={tableBtnRef.current?.getBoundingClientRect()}
-        onPick={(row, col) => onAction('tableInsert', { row, col })}
-        onClose={() => setTablePickerOpen(false)}
       />
 
       {/* 公式弹窗：LaTeX 输入 + 行内/行间切换 */}
