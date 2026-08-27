@@ -50,7 +50,8 @@ export default function AiSettingsDialog({ open, onClose }) {
   const nameInputRef = useRef(null);
 
   // ── 加载 / 持久化 ───────────────────────────────────
-  const load = useCallback(() => {
+  const load = useCallback(async () => {
+    await settingsApi.ready;
     const s = settingsApi.get();
     setEntries((s.aiModelEntries || []).map((e) => ({ ...e })));
     setActiveId(s.aiActiveModelId || '');
@@ -128,7 +129,7 @@ export default function AiSettingsDialog({ open, onClose }) {
     setFetchErr('');
     setFetching(true);
     try {
-      const { models } = await window.electronAPI.aiListModels({ baseUrl: url, apiKey: key });
+      const { models } = await window.api.aiListModels({ baseUrl: url, apiKey: key });
       if (!models.length) throw new Error('该服务未返回可用模型');
       setFetchedModels(models);
       setSelectedFetched(new Set(models)); // 默认全选

@@ -43,9 +43,14 @@ function ModelSelector({ onSelect }) {
   const [activeId, setActiveId] = useState('');
 
   useEffect(() => {
-    const s = settingsApi.get();
-    setEntries(s.aiModelEntries || []);
-    setActiveId(s.aiActiveModelId || '');
+    let alive = true;
+    settingsApi.ready.then(() => {
+      if (!alive) return;
+      const s = settingsApi.get();
+      setEntries(s.aiModelEntries || []);
+      setActiveId(s.aiActiveModelId || '');
+    });
+    return () => { alive = false; };
   }, []);
 
   // 外部点击关闭
