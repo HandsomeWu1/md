@@ -1281,9 +1281,12 @@ export default function App() {
         <SelectionAiMenu
           rect={aiSelMenu && aiConfigured ? aiSelMenu : null}
           onAction={(preset) => {
-            setAiScope('doc');
-            setAiOpen(true);
+            // 浮动菜单的预设是「选区改写」：强制走改写协议、直接写进文档，
+            // 不要在对话框里当成对话回复，也不要打开/抢占 AI 面板的焦点
+            // （否则焦点跑到回复框、第二次选区就改写不动了）。
+            // 改写结果由正文上方的 DiffConfirmBar 确认即可。
             ai.runPreset(preset.instruction);
+            setAiSelMenu(null);
           }}
           onClose={() => setAiSelMenu(null)}
         />
