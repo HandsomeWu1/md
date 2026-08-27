@@ -52,17 +52,23 @@ export default function SelectionAiMenu({ rect, onAction, onClose }) {
       return;
     }
     const m = el.getBoundingClientRect();
+    const gap = 4; // 菜单与选区之间的间距
     const margin = 8;
     const vw = window.innerWidth;
     const vh = window.innerHeight;
     let left = rect.left;
-    let top = rect.top;
-    // 水平：右溢出则左移；仍放不下（菜单比视口还宽）则贴左边界。
+    // 默认在选区**下方**弹出；下方空间不足时翻到上方。
+    let top = rect.bottom + gap;
+    if (top + m.height > vh - margin) {
+      // 下方放不下：翻到选区上方
+      top = rect.top - m.height - gap;
+    }
+    // 水平：右溢出则左移；仍放不下则贴左边界。
     if (left + m.width > vw - margin) left = Math.max(margin, vw - margin - m.width);
     if (left < margin) left = margin;
-    // 垂直：底部溢出则翻到选区上方；仍放不下则贴顶。
-    if (top + m.height > vh - margin) top = Math.max(margin, rect.top - m.height - margin);
+    // 垂直最终钳制：极端情况（视口太矮）至少不截断。
     if (top < margin) top = margin;
+    if (top + m.height > vh - margin) top = vh - margin - m.height;
     setPos({ left, top });
   }, [rect]);
 

@@ -18,6 +18,7 @@ import { useAiChat, NO_DOC_KEY } from './hooks/useAiChat';
 import Editor from './editor/Editor';
 import { extractOutline, countWords, findInMarkdown, replaceAllInMarkdown } from './utils/markdown';
 import { buildExportHtml } from './utils/export';
+import { settingsApi } from './utils/settings';
 import { setFocusMode, setTypewriterMode } from './editor/modes';
 import { actions } from './editor/commands';
 import { editorViewCtx } from '@milkdown/kit/core';
@@ -57,7 +58,7 @@ export default function App() {
   const [aiOpen, setAiOpen] = useState(false);
   const [aiSettingsOpen, setAiSettingsOpen] = useState(false);
   // AI 作用域：'doc' 当前文档 | 'tabs' 已打开文件 | 'folder' 整个打开的文件夹
-  const [aiScope, setAiScope] = useState('tabs');
+  const [aiScope, setAiScope] = useState('doc');
   // 选区浮动 AI 菜单的位置（视口坐标），null 表示隐藏
   const [aiSelMenu, setAiSelMenu] = useState(null);
   // 待确认的 AI 改动：{ tabId, snapshot, added, changed, removed, coarse }
@@ -661,7 +662,7 @@ export default function App() {
   }, []);
 
   const aiGetTabId = useCallback(() => activeTabIdRef.current, []);
-  const aiGetMaxChars = useCallback(() => settingsRef.current.aiMaxContextChars || 60000, []);
+  const aiGetMaxChars = useCallback(() => settingsApi.get().aiMaxContextChars || 60000, []);
   const aiGetCanRewrite = useCallback(() => {
     // 工作区作用域按文件名定位目标，不受当前激活标签类型限制
     if ((aiScopeRef.current || 'doc') !== 'doc') return true;
@@ -692,9 +693,12 @@ export default function App() {
   const aiOnRewritten = useCallback((tabId) => {
     if (tabId) switchTab(tabId);
   }, [switchTab]);
-  const aiGetSystemPrompt = useCallback(() => settingsRef.current.aiSystemPrompt || '', []);
+  // 这些 getter 必须读 settingsApi 的同步缓存，而非 settingsRef.current：
+  // AiSettingsDialog 通过 settingsApi.set 写入，读 settingsRef 会拿到启动时的旧值，
+  // 导致系统提示词等改了却"不生效"。
+  const aiGetSystemPrompt = useCallback(() => settingsApi.get().aiSystemPrompt || '', []);
   const aiGetPrice = useCallback(() => {
-    const s = settingsRef.current;
+    const s = settingsApi.get();
     return {
       priceIn: s.aiPriceIn || 0,
       priceOut: s.aiPriceOut || 0,
@@ -816,6 +820,7 @@ export default function App() {
     getScope: aiGetScope,
     getWorkspaceDocs: aiGetWorkspaceDocs,
     onRewritten: aiOnRewritten,
+    setScope: setAiScope,
   });
 
   // 保留改动：仅清除标注，内容维持不变。

@@ -410,10 +410,8 @@ export default function AiPanel({
         />
         <div className="ai-composer-bar">
           <ModelSelector />
-          {hasSelection ? (
+          {hasSelection && (
             <span className="ai-scope">仅改写选中的 {selectionInfo.text.length} 字</span>
-          ) : (
-            <span className="ai-scope ai-scope-muted">Enter 发送 · Shift+Enter 换行</span>
           )}
           <div className="spacer" />
           {busy ? (

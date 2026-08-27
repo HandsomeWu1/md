@@ -2402,7 +2402,6 @@ body {
 }
 /* 选区上方浮动的 AI 快捷菜单 */
 .ai-sel-menu {
-  transform: translate(-50%, calc(-100% - 8px));
   display: flex;
   gap: 2px;
   padding: 4px;

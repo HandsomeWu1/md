@@ -43,6 +43,7 @@ export function useAiChat({
   getScope,
   getWorkspaceDocs,
   onRewritten,
+  setScope,
 }) {
   const api = window.api;
   const [sessions, setSessions] = useState({});
@@ -303,12 +304,15 @@ export function useAiChat({
   }, [doSend, getScope, getTabId]);
 
   // 选区快捷动作：强制 doc 作用域（结果作用在当前文档），复用实时选区上下文。
+  // 同时把面板切回「当前文件」tab——否则若用户之前停留在工作区 tab，
+  // 结果写进 doc 会话却显示在 workspace 会话，看不到。
   const runPreset = useCallback(
     (instruction) => {
+      if (setScope) setScope('doc');
       const key = scopeSessionKey('doc', getTabId() || NO_DOC_KEY);
       return doSend('doc', key, instruction, true);
     },
-    [doSend, getTabId]
+    [doSend, getTabId, setScope]
   );
 
   const stop = useCallback(() => {
