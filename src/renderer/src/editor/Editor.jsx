@@ -156,7 +156,25 @@ const InnerEditor = forwardRef(function InnerEditor({ initialValue, onChange, on
           const view = ctx.get(editorViewCtx);
           if (!view) return;
           const { state } = view;
-          const { from, to, empty } = state.selection;
+          let { from, to, empty } = state.selection;
+          // 编辑器未聚焦时（例如刚在 AI 对话框里聊完天），ProseMirror 的 state.selection
+          // 可能没跟上真实 DOM 选区，导致「先对话、再选区改写」时选区读出来是空。
+          // 此时回退读取实时 DOM 选区并映射回 PM 坐标，保证把选中内容交给模型。
+          if (empty || from === to) {
+            try {
+              const domSel = view.dom.ownerDocument.getSelection();
+              if (domSel && !domSel.isCollapsed && domSel.rangeCount > 0) {
+                const r = domSel.getRangeAt(0);
+                if (view.dom.contains(r.startContainer) && view.dom.contains(r.endContainer)) {
+                  from = view.posAtDOM(r.startContainer, r.startOffset);
+                  to = view.posAtDOM(r.endContainer, r.endOffset);
+                  empty = from === to;
+                }
+              }
+            } catch {
+              /* 映射失败则保持 empty */
+            }
+          }
           if (empty || from === to) return;
           let text = '';
           try {

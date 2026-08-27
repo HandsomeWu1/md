@@ -2593,6 +2593,83 @@ body {
   color: var(--text-muted);
 }
 
+/* ===== AI 多模型配置档案 ===== */
+.ai-profiles {
+  margin-bottom: 4px;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg-sidebar);
+}
+.ai-profiles-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+.ai-profiles-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+.ai-profiles-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.ai-profiles-empty {
+  font-size: 11.5px;
+  color: var(--text-muted);
+  line-height: 1.6;
+}
+.ai-profile-chip {
+  appearance: none;
+  border: 1px solid var(--border-strong);
+  background: var(--bg);
+  color: var(--text-secondary);
+  font-size: 12px;
+  padding: 4px 10px;
+  border-radius: 14px;
+  cursor: pointer;
+  transition: background 0.12s, border-color 0.12s, color 0.12s;
+}
+.ai-profile-chip:hover {
+  background: var(--bg-hover);
+}
+.ai-profile-chip.active {
+  background: var(--bg-hover);
+  border-color: var(--text-muted);
+  color: var(--text);
+  font-weight: 600;
+}
+.ai-profile-new {
+  appearance: none;
+  border: 1px dashed var(--border-strong);
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 12px;
+  padding: 3px 9px;
+  border-radius: 14px;
+  cursor: pointer;
+}
+.ai-profile-new:hover {
+  background: var(--bg-hover);
+}
+.ai-profile-del {
+  margin-top: 8px;
+  appearance: none;
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 11.5px;
+  padding: 2px 0;
+  cursor: pointer;
+  text-decoration: underline;
+}
+.ai-profile-del:hover {
+  color: var(--diff-removed);
+}
+
 /* ===== AI 改动标注（正文内） =====
    语义色仅用于「新增/修改/删除」这类必须区分的信息，强度压到最低：
    淡背景 + 一条左侧细边，不改变文字颜色，避免干扰阅读。 */

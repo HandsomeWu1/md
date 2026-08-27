@@ -26,7 +26,10 @@ const DEFAULTS = {
   aiPriceOut: 0,
   aiPriceCached: 0,
   aiCurrency: '¥',
-};
+  // —— 多模型配置档案：可保存多个、点击切换（扁平 ai* 字段始终表示“当前生效”配置）——
+  aiProfiles: [],
+  aiActiveProfile: '',
+  };
 
 class SettingsStore {
   constructor() {

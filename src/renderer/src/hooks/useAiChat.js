@@ -197,7 +197,7 @@ export function useAiChat({
             applyInfo = { ok: false, reason: '模型返回了空内容，未改动选中片段' };
           } else {
             applyInfo = await applyRewrite({
-              tabId,
+              tabId: getTabId(),
               text,
               range: target,
               docSnapshot: docBefore,
@@ -219,7 +219,7 @@ export function useAiChat({
             applyInfo = { ok: false, reason: '模型返回了空内容，未改动选中片段' };
           } else {
             applyInfo = await applyRewrite({
-              tabId,
+              tabId: getTabId(),
               text: parsed.text,
               range: target,
               docSnapshot: docBefore,

@@ -35,8 +35,17 @@ export default function AiSettingsDialog({ open, settings, onSave, onCancel }) {
   const [priceOut, setPriceOut] = useState('');
   const [priceCached, setPriceCached] = useState('');
   const [currency, setCurrency] = useState('¥');
+  // —— 多模型配置档案 ——
+  const [name, setName] = useState('');
+  const [profiles, setProfiles] = useState([]);
+  const [activeId, setActiveId] = useState('');
   const firstRef = useRef(null);
   const modelBoxRef = useRef(null);
+  // 单价用 parseFloat 宽容解析：用户可能粘贴带货币符号或空格的数字。
+  const num = (v) => {
+    const n = parseFloat(String(v).replace(/[^\d.eE+-]/g, ''));
+    return Number.isFinite(n) && n > 0 ? n : 0;
+  };
 
   // 每次打开时从已保存设置回填，避免上次编辑的中间状态残留。
   useEffect(() => {
@@ -53,6 +62,10 @@ export default function AiSettingsDialog({ open, settings, onSave, onCancel }) {
     setPriceOut(settings.aiPriceOut ? String(settings.aiPriceOut) : '');
     setPriceCached(settings.aiPriceCached ? String(settings.aiPriceCached) : '');
     setCurrency(settings.aiCurrency || '¥');
+    setProfiles(settings.aiProfiles || []);
+    setActiveId(settings.aiActiveProfile || '');
+    const ap = (settings.aiProfiles || []).find((p) => p.id === settings.aiActiveProfile);
+    setName(ap ? ap.name || '' : '');
     setShowKey(false);
     setModels([]);
     setListState({ loading: false, error: '' });
@@ -101,23 +114,109 @@ export default function AiSettingsDialog({ open, settings, onSave, onCancel }) {
   const promptIsDefault = promptTrimmed === DEFAULT_SYSTEM_PROMPT.trim();
   const promptMissingMarker = !!promptTrimmed && !promptTrimmed.includes(REWRITE_MARKER);
 
-  const submit = () => {
-    // 单价用 parseFloat 宽容解析：用户可能粘贴带货币符号或空格的数字。
-    const num = (v) => {
-      const n = parseFloat(String(v).replace(/[^\d.eE+-]/g, ''));
-      return Number.isFinite(n) && n > 0 ? n : 0;
-    };
+  // 把一条配置写入扁平字段并同步档案列表；关闭弹窗即对整个应用生效。
+  const applySave = (nextProfiles, nextActiveId, prof) => {
     onSave({
-      aiBaseUrl: baseUrl.trim(),
-      aiApiKey: apiKey.trim(),
-      aiModel: model.trim(),
-      aiTemperature: temperature,
-      aiSystemPrompt: promptIsDefault ? '' : systemPrompt,
-      aiPriceIn: num(priceIn),
-      aiPriceOut: num(priceOut),
-      aiPriceCached: num(priceCached),
-      aiCurrency: currency.trim() || '¥',
+      aiBaseUrl: prof.baseUrl,
+      aiApiKey: prof.apiKey,
+      aiModel: prof.model,
+      aiTemperature: prof.temperature,
+      aiSystemPrompt: prof.systemPrompt,
+      aiPriceIn: prof.priceIn,
+      aiPriceOut: prof.priceOut,
+      aiPriceCached: prof.priceCached,
+      aiCurrency: prof.currency,
+      aiProfiles: nextProfiles,
+      aiActiveProfile: nextActiveId,
     });
+  };
+
+  // 点击档案：立即切换为该配置（载入表单 + 设为生效 + 关闭窗口）。
+  const onPick = (p) => {
+    setBaseUrl(p.baseUrl);
+    setApiKey(p.apiKey);
+    setModel(p.model);
+    setTemperature(p.temperature ?? 0.3);
+    setSystemPrompt(p.systemPrompt || DEFAULT_SYSTEM_PROMPT);
+    setPriceIn(p.priceIn ? String(p.priceIn) : '');
+    setPriceOut(p.priceOut ? String(p.priceOut) : '');
+    setPriceCached(p.priceCached ? String(p.priceCached) : '');
+    setCurrency(p.currency || '¥');
+    setName(p.name || '');
+    setActiveId(p.id);
+    applySave(profiles, p.id, p);
+  };
+
+  // 新建空白配置：清空表单，下次「保存」会作为新档案写入。
+  const onNew = () => {
+    setActiveId('');
+    setName('');
+    setBaseUrl('');
+    setApiKey('');
+    setModel('');
+    setTemperature(0.3);
+    setSystemPrompt(DEFAULT_SYSTEM_PROMPT);
+    setPriceIn('');
+    setPriceOut('');
+    setPriceCached('');
+    setCurrency('¥');
+    setListOpen(false);
+  };
+
+  // 删除当前档案：删除后若仍有剩余则切到第一条，否则保留当前表单为临时配置。
+  const onDelete = () => {
+    if (!activeId) return;
+    const next = profiles.filter((p) => p.id !== activeId);
+    if (next.length) {
+      const p = next[0];
+      setBaseUrl(p.baseUrl);
+      setApiKey(p.apiKey);
+      setModel(p.model);
+      setTemperature(p.temperature ?? 0.3);
+      setSystemPrompt(p.systemPrompt || DEFAULT_SYSTEM_PROMPT);
+      setPriceIn(p.priceIn ? String(p.priceIn) : '');
+      setPriceOut(p.priceOut ? String(p.priceOut) : '');
+      setPriceCached(p.priceCached ? String(p.priceCached) : '');
+      setCurrency(p.currency || '¥');
+      setName(p.name || '');
+      setActiveId(p.id);
+      applySave(next, p.id, p);
+    } else {
+      setActiveId('');
+      applySave(next, '', {
+        baseUrl: baseUrl.trim(),
+        apiKey: apiKey.trim(),
+        model: model.trim(),
+        temperature,
+        systemPrompt: promptIsDefault ? '' : systemPrompt,
+        priceIn: num(priceIn),
+        priceOut: num(priceOut),
+        priceCached: num(priceCached),
+        currency: currency.trim() || '¥',
+      });
+    }
+  };
+
+  // 主保存：把当前表单存为档案（新建或更新当前），并设为生效配置。
+  const submit = () => {
+    const prof = {
+      id: activeId || `p_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 7)}`,
+      name: name.trim() || model.trim() || '未命名配置',
+      baseUrl: baseUrl.trim(),
+      apiKey: apiKey.trim(),
+      model: model.trim(),
+      temperature,
+      systemPrompt: promptIsDefault ? '' : systemPrompt,
+      priceIn: num(priceIn),
+      priceOut: num(priceOut),
+      priceCached: num(priceCached),
+      currency: currency.trim() || '¥',
+    };
+    const next = profiles.slice();
+    const idx = next.findIndex((p) => p.id === prof.id);
+    if (idx >= 0) next[idx] = prof;
+    else next.push(prof);
+    applySave(next, prof.id, prof);
   };
 
   const onKeyDown = (e) => {
@@ -137,6 +236,48 @@ export default function AiSettingsDialog({ open, settings, onSave, onCancel }) {
     >
       <div className="modal ai-settings" onKeyDown={onKeyDown}>
         <div className="modal-title">AI 设置</div>
+
+        {/* 多模型配置档案：可保存多个，点击档案即切换到该配置 */}
+        <div className="ai-profiles">
+          <div className="ai-profiles-head">
+            <span className="ai-profiles-title">配置档案</span>
+            <button type="button" className="ai-profile-new" onClick={onNew}>
+              + 新建
+            </button>
+          </div>
+          <div className="ai-profiles-list">
+            {profiles.length === 0 && (
+              <span className="ai-profiles-empty">还没有保存的配置，填好后点「保存」即可留存。</span>
+            )}
+            {profiles.map((p) => (
+              <button
+                type="button"
+                key={p.id}
+                className={'ai-profile-chip' + (p.id === activeId ? ' active' : '')}
+                onClick={() => onPick(p)}
+                title="点击切换到该配置"
+              >
+                {p.name || p.model || '未命名'}
+              </button>
+            ))}
+          </div>
+          {activeId && (
+            <button type="button" className="ai-profile-del" onClick={onDelete}>
+              删除当前
+            </button>
+          )}
+        </div>
+
+        <label className="ai-field">
+          <span>配置名称（可选）</span>
+          <input
+            className="modal-input"
+            type="text"
+            value={name}
+            placeholder="留空则使用模型名"
+            onChange={(e) => setName(e.target.value)}
+          />
+        </label>
 
         <label className="ai-field">
           <span>API 地址</span>
