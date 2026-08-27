@@ -4,21 +4,6 @@ import { settingsApi } from '../utils/settings';
 // ── 常量 ──────────────────────────────────────────────
 const DEFAULT_TEMP = 0.3;
 
-function makeId() {
-  return Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
-}
-
-// 从模型 ID 推断一个简短的显示名（用户可后续编辑）
-function guessDisplayName(modelId) {
-  if (!modelId) return '未命名模型';
-  const last = modelId.split('/').pop() || modelId;
-  // deepseek-chat → DeepSeek Chat, gpt-4o → GPT-4o
-  return last
-    .replace(/[-_]/g, ' ')
-    .replace(/\b\w/g, (c) => c.toUpperCase())
-    .trim();
-}
-
 // ── 主组件 ────────────────────────────────────────────
 export default function AiSettingsDialog({ open, onClose }) {
   const [entries, setEntries] = useState([]);
@@ -32,7 +17,6 @@ export default function AiSettingsDialog({ open, onClose }) {
   const [currency, setCurrency] = useState('¥');
 
   // 详情编辑态（右侧面板）
-  const [editName, setEditName] = useState('');
   const [editBaseUrl, setEditBaseUrl] = useState('');
   const [editApiKey, setEditApiKey] = useState('');
   const [editModel, setEditModel] = useState('');
@@ -47,7 +31,6 @@ export default function AiSettingsDialog({ open, onClose }) {
   const [selectedFetched, setSelectedFetched] = useState(new Set()); // 选中的模型 id
 
   const listRef = useRef(null);
-  const nameInputRef = useRef(null);
 
   // ── 加载 / 持久化 ───────────────────────────────────
   const load = useCallback(async () => {
@@ -100,26 +83,15 @@ export default function AiSettingsDialog({ open, onClose }) {
     if (adding) return; // 新增模式下不跟随
     const e = entries.find((x) => x.id === activeId);
     if (e) {
-      setEditName(e.name || '');
       setEditBaseUrl(e.baseUrl || '');
       setEditApiKey(e.apiKey || '');
       setEditModel(e.model || '');
     } else {
-      setEditName('');
       setEditBaseUrl('');
       setEditApiKey('');
       setEditModel('');
     }
   }, [activeId, entries, adding]);
-
-  // 切到已有模型时自动聚焦名字输入框
-  useEffect(() => {
-    if (!adding && activeId && nameInputRef.current) {
-      // 小延迟等 DOM 更新
-      const t = setTimeout(() => nameInputRef.current?.focus(), 50);
-      return () => clearTimeout(t);
-    }
-  }, [activeId, adding]);
 
   // ── 操作：新增模型（从 API 拉列表批量加） ─────────
   async function handleFetchModels() {
@@ -154,7 +126,7 @@ export default function AiSettingsDialog({ open, onClose }) {
       if (!firstNewId) firstNewId = id;
       newEntries.push({
         id,
-        name: guessDisplayName(mid),
+        name: mid,
         model: mid,
         baseUrl: url,
         apiKey: key,
@@ -180,13 +152,12 @@ export default function AiSettingsDialog({ open, onClose }) {
 
   // ── 操作：保存详情编辑 ─────────────────────────────
   function handleSaveDetail() {
-    const name = editName.trim();
     const baseUrl = editBaseUrl.trim();
     const model = editModel.trim();
-    if (!name || !baseUrl || !model) return;
+    if (!baseUrl || !model) return;
 
     const updated = entries.map((e) =>
-      e.id === activeId ? { ...e, name, baseUrl, apiKey: editApiKey.trim(), model } : e
+      e.id === activeId ? { ...e, baseUrl, apiKey: editApiKey.trim(), model } : e
     );
     setEntries(updated);
     save({ aiModelEntries: updated });
@@ -245,17 +216,24 @@ export default function AiSettingsDialog({ open, onClose }) {
           >
             {hasEntries ? (
               entries.map((e) => (
-                <button
+                <div
                   key={e.id}
                   className={`ai-model-entry ${e.id === activeId ? 'active' : ''}`}
                   onClick={() => handleSelect(e.id)}
-                  title={`${e.name}\n${e.model}\n${e.baseUrl?.slice(0, 40)}`}
+                  title={`${e.model}\n${e.baseUrl?.slice(0, 40)}`}
                 >
-                  <span className="ai-model-entry-name">{e.name}</span>
+                  <span className="ai-model-entry-name">{e.model}</span>
                   {e.id === activeId && (
                     <span className="ai-model-entry-check">✓</span>
                   )}
-                </button>
+                  <button
+                    className="ai-model-entry-del"
+                    title="删除此模型"
+                    onClick={(ev) => { ev.stopPropagation(); handleDelete(e.id); }}
+                  >
+                    ×
+                  </button>
+                </div>
               ))
             ) : (
               <div className="ai-model-empty">暂无模型</div>
@@ -319,8 +297,7 @@ export default function AiSettingsDialog({ open, onClose }) {
                             checked={selectedFetched.has(mid)}
                             onChange={() => toggleFetched(mid)}
                           />
-                          <span>{guessDisplayName(mid)}</span>
-                          <code className="ai-fetch-id">{mid}</code>
+                          <span>{mid}</span>
                         </label>
                       ))}
                     </div>
@@ -343,28 +320,8 @@ export default function AiSettingsDialog({ open, onClose }) {
               /* 编辑已有模型的详情 */
               <div>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
-                  <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)' }}>模型设置</span>
-                  <button
-                    className="ai-icon-btn"
-                    onClick={() => handleDelete(activeId)}
-                    title="删除此模型"
-                    style={{ color: 'var(--diff-removed)', fontSize: 14 }}
-                  >
-                    🗑
-                  </button>
+                  <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-secondary)' }}>{activeEntry.model}</span>
                 </div>
-                <label className="ai-field">
-                  <span>显示名称</span>
-                  <input
-                    ref={nameInputRef}
-                    className="modal-input"
-                    value={editName}
-                    onChange={(e) => setEditName(e.target.value)}
-                    onBlur={handleSaveDetail}
-                    onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); handleSaveDetail(); } }}
-                    placeholder="显示在下拉框里的名称"
-                  />
-                </label>
                 <label className="ai-field">
                   <span>API 地址</span>
                   <input

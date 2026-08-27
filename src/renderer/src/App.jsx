@@ -1294,9 +1294,7 @@ export default function App() {
 
       <AiSettingsDialog
         open={aiSettingsOpen}
-        settings={settings}
-        onSave={saveAiSettings}
-        onCancel={() => setAiSettingsOpen(false)}
+        onClose={() => setAiSettingsOpen(false)}
       />
 
       <SearchDialog

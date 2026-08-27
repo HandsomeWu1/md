@@ -78,8 +78,8 @@ function ModelSelector({ onSelect }) {
   return (
     <div className="ai-model-selector" ref={ref}>
       <button className="ai-model-selector-btn" onClick={() => setOpen((v) => !v)} title="切换模型">
-        <span className="ai-model-selector-icon">{(active?.name || '?').charAt(0).toUpperCase()}</span>
-        <span className="ai-model-selector-name">{active?.name || '选择模型'}</span>
+        <span className="ai-model-selector-icon">{(active?.model || '?').charAt(0).toUpperCase()}</span>
+        <span className="ai-model-selector-name">{active?.model || '选择模型'}</span>
         <span className="ai-model-selector-arrow">▾</span>
       </button>
       {open && (
@@ -93,8 +93,7 @@ function ModelSelector({ onSelect }) {
                 className={`ai-model-sel-item ${e.id === activeId ? 'active' : ''}`}
                 onClick={() => handleSelect(e.id)}
               >
-                <span className="ai-model-sel-name">{e.name}</span>
-                <span className="ai-model-sel-id">{e.model}</span>
+                <span className="ai-model-sel-name">{e.model}</span>
               </button>
             ))
           )}

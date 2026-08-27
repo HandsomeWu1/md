@@ -3013,6 +3013,7 @@ body {
 
 /* ===== AI 设置：模型列表（左侧栏） ===== */
 .ai-model-entry {
+  position: relative;
   display: flex;
   align-items: center;
   width: 100%;
@@ -3040,11 +3041,39 @@ body {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  /* 给右上角删除按钮留出空间 */
+  padding-right: 16px;
 }
 .ai-model-entry-check {
   flex: 0 0 auto;
   font-size: 11px;
   color: var(--accent);
+}
+/* 删除按钮：默认隐藏，hover 卡片时显示在右上角 */
+.ai-model-entry-del {
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  display: none;
+  width: 16px;
+  height: 16px;
+  line-height: 14px;
+  padding: 0;
+  border: none;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 13px;
+  text-align: center;
+  cursor: pointer;
+  transition: background 0.1s ease, color 0.1s ease;
+}
+.ai-model-entry-del:hover {
+  background: var(--diff-removed-bg, rgba(255, 0, 0, 0.12));
+  color: var(--diff-removed, #e5484d);
+}
+.ai-model-entry:hover .ai-model-entry-del {
+  display: block;
 }
 .ai-model-empty {
   padding: 16px 10px;
