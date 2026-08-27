@@ -143,6 +143,17 @@ class SlashMenuView {
     if (nodes.code_block) {
       items.push({ label: '代码块', icon: '</>', run: () => runBlockCommand(this.view, setBlockType(nodes.code_block)) });
     }
+    if (nodes.horizontal_rule) {
+      items.push({
+        label: '分割线',
+        icon: '―',
+        run: () => runBlockCommand(this.view, (state, dispatch) => {
+          const hrNode = state.schema.nodes.horizontal_rule.create();
+          dispatch?.(state.tr.replaceSelectionWith(hrNode).scrollIntoView());
+          return true;
+        }),
+      });
+    }
     if (nodes.table) {
       items.push({
         label: '表格',
