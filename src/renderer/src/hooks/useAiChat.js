@@ -24,6 +24,7 @@ export function useAiChat({
   getSelection,
   getMaxChars,
   getCanRewrite,
+  getSystemPrompt,
   applyRewrite,
   aliveTabIds,
 }) {
@@ -74,6 +75,7 @@ export function useAiChat({
         .map((m) => ({ role: m.role, content: m.content })),
       maxChars: getMaxChars(),
       canRewrite: getCanRewrite ? getCanRewrite() : true,
+      systemPrompt: getSystemPrompt ? getSystemPrompt() : '',
     });
 
     const requestId = nextRequestId();
@@ -101,9 +103,21 @@ export function useAiChat({
     const isRewrite = !!parsed && parsed.kind === 'rewrite';
     let applyInfo = null;
     if (isRewrite) {
-      applyInfo = parsed.text
-        ? applyRewrite({ tabId, text: parsed.text, range: target, docSnapshot: docBefore })
-        : { ok: false, reason: '模型返回了空的改写内容' };
+      // 空正文是**合法意图**（用户要求清空文档），不能当异常拒绝——
+      // 模型既然输出了改写标记，就是有意改写。误清空由确认条的「撤销」兜底。
+      // 但选区改写时清空选区的语义太容易出错（如模型只是漏输出），故仍要求非空。
+      const isClear = !parsed.text;
+      if (isClear && target) {
+        applyInfo = { ok: false, reason: '模型返回了空内容，未改动选中片段' };
+      } else {
+        applyInfo = applyRewrite({
+          tabId,
+          text: parsed.text,
+          range: target,
+          docSnapshot: docBefore,
+          cleared: isClear,
+        });
+      }
     }
 
     patchSession(tabId, (s) => ({
@@ -132,7 +146,17 @@ export function useAiChat({
         };
       }),
     }));
-  }, [sessions, getTabId, getDocument, getSelection, getMaxChars, getCanRewrite, applyRewrite, patchSession]);
+  }, [
+    sessions,
+    getTabId,
+    getDocument,
+    getSelection,
+    getMaxChars,
+    getCanRewrite,
+    getSystemPrompt,
+    applyRewrite,
+    patchSession,
+  ]);
 
   const stop = useCallback(() => {
     const tabId = getTabId();

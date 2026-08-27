@@ -624,6 +624,7 @@ export default function App() {
     const t = tabsRef.current.find((x) => x.id === activeTabIdRef.current);
     return !!t && t.kind !== 'code';
   }, []);
+  const aiGetSystemPrompt = useCallback(() => settingsRef.current.aiSystemPrompt || '', []);
 
   /**
    * 把 AI 改写结果写入文档，并在正文里标注改动位置。
@@ -633,7 +634,7 @@ export default function App() {
    * 2. 基于选区的改写，但文档在等待期间已被改动 —— 记录的位置可能已错位。
    */
   const applyAiRewrite = useCallback(
-    ({ tabId, text, range, docSnapshot }) => {
+    ({ tabId, text, range, docSnapshot, cleared }) => {
       const t = tabsRef.current.find((x) => x.id === tabId);
       if (!t) return { ok: false, reason: '文档已关闭，未写入' };
       if (tabId !== activeTabIdRef.current) {
@@ -656,8 +657,16 @@ export default function App() {
         changed: res.changed,
         removed: res.removed,
         coarse: !!res.coarse,
+        cleared: !!cleared,
       });
-      return { ok: true, added: res.added, changed: res.changed, removed: res.removed, coarse: !!res.coarse };
+      return {
+        ok: true,
+        added: res.added,
+        changed: res.changed,
+        removed: res.removed,
+        coarse: !!res.coarse,
+        cleared: !!cleared,
+      };
     },
     []
   );
@@ -668,6 +677,7 @@ export default function App() {
     getSelection: aiGetSelection,
     getMaxChars: aiGetMaxChars,
     getCanRewrite: aiGetCanRewrite,
+    getSystemPrompt: aiGetSystemPrompt,
     applyRewrite: applyAiRewrite,
     aliveTabIds: tabs.map((t) => t.id),
   });
@@ -1074,6 +1084,7 @@ export default function App() {
                   changed={aiDiff.changed}
                   removed={aiDiff.removed}
                   coarse={aiDiff.coarse}
+                  cleared={aiDiff.cleared}
                   onKeep={keepAiDiff}
                   onRevert={revertAiDiff}
                   onLocate={() => editorRef.current?.scrollToFirstDiff()}

@@ -75,6 +75,13 @@ export function installMockApi() {
       aiAborted.add(requestId);
       return { ok: true };
     },
+    // 模型列表（预览模拟）。地址里含 "bad" 时模拟失败，便于验证手填兜底路径。
+    aiListModels: async ({ baseUrl } = {}) => {
+      await new Promise((r) => setTimeout(r, 200));
+      if (!baseUrl) return { ok: false, error: '请先填写 API 地址' };
+      if (/bad|invalid/.test(baseUrl)) return { ok: false, error: '获取模型列表失败（404）：Not Found' };
+      return { ok: true, models: ['deepseek-v4-flash', 'deepseek-v4-pro', 'deepseek-v4-flash-vision-exp'] };
+    },
     aiChat: async ({ requestId, messages }) => {
       const list = messages || [];
       const lastUser = [...list].reverse().find((m) => m.role === 'user');
@@ -83,7 +90,9 @@ export function installMockApi() {
 
       // 模拟真实模型的意图判断：只有出现明确的修改类要求才走改写，
       // 「你好」这类寒暄一律当对话（这正是合并模式后必须保证的行为）。
+      const wantsClear = /清空|清除全部|删掉全部|删除全部|全部删掉/.test(userText);
       const wantsRewrite =
+        wantsClear ||
         /改写|改简洁|精简|简化|扩写|翻译|润色|修正|改成|加个|补充|重写|优化一下|改一下|改下/.test(userText);
       const rewriteForbidden = /不支持改写/.test(systemText);
       const onlySelection = /只改写这段选中内容/.test(systemText);
@@ -101,7 +110,12 @@ export function installMockApi() {
         if (!source) return '# 改写后的文档\n\n这是模拟改写返回的内容。';
         if (onlySelection) return '【已改写】' + source;
         const blocks = source.split(/\n{2,}/);
-        const idx = blocks.length > 1 ? 1 : 0;
+        // 挑一个真正有内容的块来改。注意 Milkdown 会把空段落序列化成 <br />，
+        // 若不跳过这些占位块，"改写"就会变成插入新段落，diff 结果与预期不符。
+        const isFiller = (b) => !b.trim() || /^(<br\s*\/?>|\\)$/i.test(b.trim());
+        let idx = blocks.findIndex((b, i) => i > 0 && !isFiller(b));
+        if (idx < 0) idx = blocks.findIndex((b) => !isFiller(b));
+        if (idx < 0) idx = 0;
         blocks[idx] = '【已精简】' + blocks[idx];
         blocks.push('这一段是模拟改写新增的内容，用于验证「新增」标注。');
         return blocks.join('\n\n');
@@ -109,7 +123,8 @@ export function installMockApi() {
 
       const isRewrite = wantsRewrite && !rewriteForbidden;
       // 改写回复必须带上协议标记，与真实模型的输出格式保持一致。
-      const full = isRewrite ? `%%REWRITE%%\n${buildRewrite()}` : chatReply;
+      // 清空指令按协议在标记后留空正文。
+      const full = isRewrite ? (wantsClear ? '%%REWRITE%%\n' : `%%REWRITE%%\n${buildRewrite()}`) : chatReply;
       let content = '';
       // 按 6~10 字符切片模拟流式，每片延时让渲染层能看到渐进效果。
       let i = 0;

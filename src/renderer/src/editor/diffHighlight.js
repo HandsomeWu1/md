@@ -55,37 +55,51 @@ export const diffHighlight = $prose(
 );
 
 /**
+ * 收集参与 diff 的顶层块。
+ *
+ * **空段落一律跳过**：它在 Markdown 里没有对应表示，改写结果经 markdown 往返后
+ * 必然丢失，若计入 diff 就会报出「删除 N 处」这种用户无法理解的虚假改动。
+ * 指纹用整节点序列化，因此内容与格式（加粗、链接等）的任何变化都能被识别。
+ *
+ * 位置与指纹必须来自同一次遍历，否则块索引会与文档位置错位。
+ */
+function collectBlocks(doc) {
+  const blocks = [];
+  doc.forEach((node, offset) => {
+    if (node.isTextblock && node.content.size === 0) return;
+    blocks.push({ key: JSON.stringify(node.toJSON()), from: offset, to: offset + node.nodeSize });
+  });
+  return blocks;
+}
+
+export function topLevelKeys(doc) {
+  return collectBlocks(doc).map((b) => b.key);
+}
+
+/**
  * 把块索引形式的差异结果换算成文档位置区间。
  * @param {import('@milkdown/prose/model').Node} doc
  * @param {{added:number[],changed:number[],removedAt:number[],removedCount:number}} diff
  */
 export function diffToRanges(doc, diff) {
-  // 顶层块的起始位置：doc.forEach 给出的 offset 就是该块的绝对起点。
-  const blocks = [];
-  doc.forEach((node, offset) => {
-    blocks.push({ from: offset, to: offset + node.nodeSize });
-  });
+  const blocks = collectBlocks(doc);
+  const docEnd = doc.content.size;
 
   const ranges = [];
   for (const i of diff.added) {
-    if (blocks[i]) ranges.push({ ...blocks[i], kind: 'added' });
+    if (blocks[i]) ranges.push({ from: blocks[i].from, to: blocks[i].to, kind: 'added' });
   }
   for (const i of diff.changed) {
-    if (blocks[i]) ranges.push({ ...blocks[i], kind: 'changed' });
+    if (blocks[i]) ranges.push({ from: blocks[i].from, to: blocks[i].to, kind: 'changed' });
   }
   for (const i of diff.removedAt) {
-    // 删除点可能落在文档末尾（索引越界），此时贴到最后一个块的末尾。
-    const at = blocks[i] ? blocks[i].from : blocks.length ? blocks[blocks.length - 1].to : 0;
-    ranges.push({ from: at, to: at, kind: 'removed', count: diff.removedCount });
+    // 删除点可能落在文档末尾（索引越界）；文档被清空时连一个有效块都没有，
+    // 此时贴到文档内部起点（位置 1）而不是 0——0 在节点之外，widget 无处附着。
+    let at;
+    if (blocks[i]) at = blocks[i].from;
+    else if (blocks.length) at = blocks[blocks.length - 1].to;
+    else at = Math.min(1, docEnd);
+    ranges.push({ from: Math.max(0, Math.min(at, docEnd)), to: 0, kind: 'removed', count: diff.removedCount });
   }
   return ranges;
-}
-
-// 顶层块指纹：序列化整个节点，使内容与格式（加粗、链接等）的任何变化都能被识别。
-export function topLevelKeys(doc) {
-  const keys = [];
-  doc.forEach((node) => {
-    keys.push(JSON.stringify(node.toJSON()));
-  });
-  return keys;
 }

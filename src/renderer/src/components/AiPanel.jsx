@@ -37,15 +37,19 @@ const ICONS = {
 // 由用户在正文的高亮标注上确认取舍。
 function applyNote(apply) {
   if (!apply) return null;
-  if (apply.ok) {
-    if (apply.coarse) return '已改写文档（文档较大，未逐段标注）';
-    const parts = [];
-    if (apply.added) parts.push(`新增 ${apply.added}`);
-    if (apply.changed) parts.push(`修改 ${apply.changed}`);
-    if (apply.removed) parts.push(`删除 ${apply.removed}`);
-    return parts.length ? `已改写文档：${parts.join(' · ')} 处，请在正文中确认` : '模型未产生实际改动';
+  if (!apply.ok) return apply.reason || '未写入文档';
+  if (apply.coarse) return '已改写文档（文档较大，未逐段标注）';
+  const parts = [];
+  if (apply.added) parts.push(`新增 ${apply.added}`);
+  if (apply.changed) parts.push(`修改 ${apply.changed}`);
+  if (apply.removed) parts.push(`删除 ${apply.removed}`);
+  if (apply.cleared) {
+    return parts.length ? `已清空文档（原有 ${apply.removed} 段），可在上方撤销` : '文档本来就是空的';
   }
-  return apply.reason || '未写入文档';
+  // 统计全为 0 说明模型把原文照原样返回了——如实说明，而不是含糊地说「已改写」。
+  return parts.length
+    ? `已改写文档：${parts.join(' · ')} 处，请在正文中确认`
+    : '模型返回的内容与原文一致，文档未改动（可换个说法再试）';
 }
 
 // 流式期间的呈现：意图未明时只显示「思考中」，避免先闪出半个协议标记。

@@ -194,6 +194,17 @@ function registerIpc() {
     aiService.abort(requestId);
     return { ok: true };
   });
+
+  // 拉取模型列表供设置弹窗做下拉选择。payload 可带尚未保存的 baseUrl/apiKey，
+  // 这样用户填完地址就能立即看到列表，不必先保存再重新打开。
+  ipcMain.handle('ai:list-models', async (_e, payload) => {
+    try {
+      const { models } = await aiService.listModels(payload || {});
+      return { ok: true, models };
+    } catch (err) {
+      return { ok: false, error: err.message };
+    }
+  });
 }
 
 module.exports = { registerIpc };

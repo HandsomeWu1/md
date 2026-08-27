@@ -47,6 +47,7 @@ const api = {
   // AI
   aiChat: (payload) => ipcRenderer.invoke('ai:chat', payload),
   aiAbort: (requestId) => ipcRenderer.invoke('ai:abort', requestId),
+  aiListModels: (payload) => ipcRenderer.invoke('ai:list-models', payload),
   onAiChunk: (cb) => {
     const handler = (_e, data) => cb(data);
     ipcRenderer.on('ai:chunk', handler);

@@ -17,6 +17,9 @@ const DEFAULTS = {
   aiModel: '',
   aiTemperature: 0.3,
   aiMaxContextChars: 60000,
+  // 空字符串表示使用渲染层内置的默认提示词（默认值定义在 utils/aiPrompt.js，
+  // 不在主进程重复一份，避免两处漂移）。
+  aiSystemPrompt: '',
 };
 
 class SettingsStore {

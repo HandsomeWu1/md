@@ -11,18 +11,28 @@
 
 export const REWRITE_MARKER = '%%REWRITE%%';
 
-const SYSTEM_PROMPT =
+// 默认 system 提示词。用户可在「AI 设置 → 高级」里整段替换。
+//
+// 这里刻意允许用户改**全部内容**（包括协议说明），而不是只开放一小段自定义区：
+// 提示词是这个功能的核心行为定义，藏一半反而让人无法理解 AI 为什么这么做。
+// 代价是用户可能删掉 REWRITE_MARKER 的说明导致改写失效，因此设置界面会检测
+// 并如实提示——告知而非阻止。
+export const DEFAULT_SYSTEM_PROMPT =
   '你是 Markdown 编辑器 Margin-AI 内置的助手。你有两种回应方式，请自行判断使用哪一种。\n\n' +
   '【方式一：对话】（默认）\n' +
   '当用户在打招呼、闲聊、提问、或请你解释、分析、总结内容时，直接用简洁的中文回答，' +
   '必要时使用 Markdown 排版。例如「你好」「这篇文档讲了什么」「什么是向量数据库」都属于对话。\n\n' +
   '【方式二：改写文档】\n' +
   '仅当用户**明确要求修改文档内容**时才使用，例如「改简洁些」「加个小标题」「翻译成英文」' +
-  '「修正错别字」「扩写这段」「把列表改成表格」。\n' +
+  '「修正错别字」「扩写这段」「把列表改成表格」「删掉第二段」「清空这份文档」。\n' +
   '格式要求：第一行只输出 ' +
   REWRITE_MARKER +
   '（前后不要加任何其它字符），从第二行开始输出改写后的完整 Markdown 正文。\n' +
-  '不要输出任何解释、前言或结语，也不要用 ``` 把整篇结果包裹起来（正文内部原有的代码块要保留）。\n\n' +
+  '不要输出任何解释、前言或结语，也不要用 ``` 把整篇结果包裹起来（正文内部原有的代码块要保留）。\n' +
+  '若用户要求清空、删除全部内容，就在第一行的 ' +
+  REWRITE_MARKER +
+  ' 之后不输出任何正文（留空即表示清空）。\n' +
+  '注意：输出的必须是修改后的**结果本身**，不要把原文原样返回。\n\n' +
   '【判断原则】\n' +
   '如果不确定用户是否想修改文档，就用对话方式回答并主动询问。' +
   '用户没有明确提出修改要求时，绝对不要使用方式二。';
@@ -91,6 +101,7 @@ export function parseAiReply(raw) {
  * @param {Array}  o.history     既往对话 [{ role, content }]
  * @param {number} o.maxChars    上下文字符上限
  * @param {boolean} o.canRewrite 当前视图是否允许改写（代码视图不允许）
+ * @param {string} o.systemPrompt 自定义 system 提示词；留空则用内置默认
  */
 export function buildMessages({
   prompt,
@@ -99,8 +110,12 @@ export function buildMessages({
   history = [],
   maxChars = 60000,
   canRewrite = true,
+  systemPrompt = '',
 }) {
-  const msgs = [{ role: 'system', content: SYSTEM_PROMPT }];
+  // 用户可能把提示词清空后保存，此时回退默认而不是发一条空 system——
+  // 空提示词会让模型完全失去行为约束。
+  const sys = (systemPrompt || '').trim() || DEFAULT_SYSTEM_PROMPT;
+  const msgs = [{ role: 'system', content: sys }];
 
   // 不允许改写时直接告知模型，比事后拒绝它的改写结果体验更好
   // （否则用户会看到「已生成」却又「未写入」的矛盾提示）。
