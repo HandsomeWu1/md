@@ -268,7 +268,7 @@ export function useAiChat({
           error: res && res.canceled ? '已取消' : (res && res.error) || '请求失败',
         };
       }),
-    });
+    }));
     } catch (err) {
       // 任何一步（意图解析 / 改写落地 / 结果组装）抛错都不能让会话卡在「发送中」——
       // 否则停止按钮一直显示、无法继续对话。兜底把会话拉回空闲并记录错误。
