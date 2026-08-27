@@ -1,4 +1,4 @@
-# Margin
+# Margin-AI
 
 极简的所见即所得（WYSIWYG）Markdown 桌面编辑器，面向 **macOS Apple Silicon（M 系列芯片）**。本项目为**原创实现**，使用开源 Markdown 编辑框架 Milkdown，不包含任何第三方编辑器的私有代码、资源或商标。
 
@@ -35,19 +35,42 @@
 - **Typewriter 模式**：`Cmd+Shift+T`，光标始终保持在视口垂直居中。
 - **拼写检查**：英文拼写检查（macOS 原生词典）。
 
+### AI 助手（右侧面板）
+- **入口**：标题栏右侧的对话气泡按钮，或菜单「视图 → 切换 AI 面板」（`Cmd+Shift+3`）。极简模式下自动隐藏。
+- **只有一个输入框，AI 自行判断意图**：普通提问、闲聊、让它解释内容 → 只回复，**不碰文档**；只有你明确要求修改（如「改简洁些」「加个小标题」「翻译成英文」「修正错别字」）时才会改写。判断不确定时它会反问而不是擅自动手。
+- **没有打开文档时也能对话**：此时 AI 只回答问题（已在提示词里告知它无法改写），打开或新建文档后即可让它改内容。这个会话独立保存，关掉文档回到欢迎页仍能看到。
+- **思考过程可见**：思考型模型（如 DeepSeek R1）的推理内容会单独显示，生成中自动展开、结束后自动折叠（点标题可随时展开）。独立的 `reasoning_content` 字段与正文内嵌的 `<think>…</think>` 两种形式都支持。
+- **每条回复下显示 token 用量**：输入/输出/思考/缓存命中分项列出。在「高级」里填过单价后还会换算出金额（见下）。
+- **每个文档一个独立会话**：切换标签会切换到该文档自己的聊天记录与输入草稿，切回来内容仍在；关闭标签时其会话一并回收。
+- **改动直接落在正文里并标注出来**：改写结果写进文档，新增段落标绿、被改写的段落标黄、删除处留一个小三角提示；正文上方出现一条确认栏，可「定位 / 撤销 / 保留」。撤销按改写前的快照整篇恢复（比依赖撤销栈更可预期），保留则只清除标注。
+  - 要求「清空这份文档」也能正常工作（协议上约定为「标记后正文留空」），确认栏会提示原有段数，可一键撤销。
+  - 若模型只是把原文照样返回，会明确提示「内容与原文一致，文档未改动」，而不是含糊地说已改写。
+- **先选中再提要求 = 只改选中部分**：选中文字后面板会提示「仅改写选中的 N 字」，此时改写只作用于该片段（选中状态在你切到输入框打字时保持不变）。
+- **输入**：`Enter` 发送、`Shift+Enter` 换行；中文输入法组字/选词期间的回车只用于确认候选，不会误发送。
+- **配置**：面板右上的滑块图标 → 填写 API 地址与 API Key 后，点「获取」可**直接从服务端拉取模型列表**下拉选择（也支持手动填写，兼容返回格式非标准的服务）；`Temperature` 用滑块调节（左「严谨」右「发散」，范围 0–1.2，默认 0.3）。仅支持 **OpenAI 兼容的 `/chat/completions`** 接口（OpenAI、DeepSeek、Kimi、通义、OpenRouter、vLLM、Ollama 等均可）。地址填到 `/v1` 即可，也接受完整端点。
+- **System 提示词可自定义**：设置弹窗底部「高级：System 提示词与计费」展开后可整段编辑，它决定 AI 如何判断「对话」还是「改写文档」。改完可一键「恢复默认」；留空保存即回退默认。若删掉了 `%%REWRITE%%` 协议标记的说明，界面会提示「AI 将无法改写文档（只能对话）」——**只提示不阻止**，因为你可能就想要一个纯对话助手。
+- **计费单价**：同在「高级」区，按「每百万 token」填入输入/输出/缓存命中单价与货币符号，填了才会把 token 折算成金额。**不内置价格表**——各家定价常调整，显示一个过期金额比不显示更糟；API 本身也不返回价格。
+- **实现要点**：
+  - 请求由**主进程**发起 —— 渲染层 CSP 的 `connect-src` 不开放任意外部地址，这样既不放宽 CSP、又避开 CORS，且 API Key 不进入渲染进程。密钥以明文保存在本机 `settings.json`（用户自用定位）。
+  - 意图不用 function calling 表达，而是约定模型在改写时**首行输出 `%%REWRITE%%` 标记** —— 用户可能接任意 OpenAI 兼容端点，tools 支持度参差不齐，纯文本标记在所有端点上都能工作且适配流式解析。**没有标记就一律当对话，绝不碰文档**（宁可漏改，不可误改）。
+  - 模型列表通过 `GET {地址}/models` 拉取，解析对各家差异做了宽容处理（`data`/`models` 数组、元素为字符串或 `id`/`name`/`model` 字段皆可）；拉取失败或格式无法识别时给出原因并**退回手动填写**，不阻塞配置。
+  - token 用量需在请求里带 `stream_options.include_usage`（流式默认不返回 usage）。部分兼容端点不认识该参数，遇到相关 400 会**自动重试一次不带它**，仅放弃用量统计、不影响对话。
+  - AI 回复渲染关闭 raw HTML，防止模型输出造成 XSS。
+  - 改动标注基于**顶层块级 diff**（LCS，先剥离公共前后缀），因此只有真正变化的段落会被标记；空段落不参与比较（它在 Markdown 里没有对应表示，否则会报出无法理解的虚假改动）。
+
 ## 技术栈
 
 - **Electron**（主进程 / preload / 打包）
 - **Milkdown v7** + React（`@milkdown/kit`、`@milkdown/react`、`@milkdown/theme-nord`）—— 所见即所得编辑器
 - **插件**：`@milkdown/plugin-prism`（代码高亮）、`@milkdown/plugin-math`（KaTeX）、`@milkdown/plugin-emoji`、`@milkdown/plugin-upload`（图片）、`@milkdown/plugin-slash`（斜杠命令）
-- **markdown-it** —— 导出 HTML/PDF 的渲染
+- **markdown-it** —— 导出 HTML/PDF 与 AI 回复的渲染
 - **Vite** —— 渲染层构建
 - **electron-builder** —— 打包 `.dmg` / `.zip`
 
 ## 目录结构
 
 ```
-typora-dev/
+Margin/
 ├── package.json
 ├── electron-builder.yml        # 打包配置（mac arm64）
 ├── vite.config.mjs             # 渲染层构建配置
@@ -65,6 +88,7 @@ typora-dev/
     │   ├── ipc.js              # IPC 处理器
     │   ├── file-service.js     # 文件读写 + 授权模型
     │   ├── export-service.js   # HTML/PDF 导出
+    │   ├── ai-service.js       # AI 请求（OpenAI 兼容 + SSE 流式 + 取消）
     │   └── store.js            # 设置/最近文件持久化
     ├── preload/index.js        # contextBridge 白名单 API
     └── renderer/               # React 渲染层
@@ -77,11 +101,13 @@ typora-dev/
             ├── editor/         # Milkdown 集成
             │   ├── createMilkdown.js  # 编辑器工厂（插件装配）
             │   ├── Editor.jsx         # React 封装
+            │   ├── diffHighlight.js   # AI 改动标注（decoration）
             │   ├── mermaidPreview.js  # Mermaid SVG 预览
             │   ├── modes.js           # Focus/Typewriter 模式
             │   └── slashMenu.js       # 斜杠命令菜单
             ├── components/     # UI 组件
-            ├── utils/          # 大纲/字数/导出工具
+            ├── hooks/          # useAiChat（按文档隔离的 AI 会话）
+            ├── utils/          # 大纲/字数/导出/块级 diff/AI 提示词与用量
             └── styles/         # 主题与样式
 ```
 
@@ -94,12 +120,12 @@ typora-dev/
 ## 构建（macOS arm64）
 
 ```bash
-cd typora-dev
+cd Margin
 npm install
 npm run dist:mac-arm64
 ```
 
-产物输出到 `release/`：`Margin-0.1.0-arm64.dmg` 与 `-arm64-mac.zip`。
+产物输出到 `release/`：`Margin-AI-0.1.0-arm64.dmg` 与 `-arm64-mac.zip`。
 
 也可以直接用脚本：
 
@@ -135,7 +161,7 @@ npm run dev
 
 ## 已知限制与后续规划
 
-- 未签名构建首次打开可能触发 Gatekeeper 提示，本机构建一般可正常运行；如遇「已损坏」，执行 `xattr -cr /Applications/Margin.app`。
+- 未签名构建首次打开可能触发 Gatekeeper 提示，本机构建一般可正常运行；如遇「已损坏」，执行 `xattr -cr /Applications/Margin-AI.app`。
 - 查找匹配当前在文档源码层计数与替换，暂未在编辑器内做高亮滚动。
 - 标签切换会重建编辑器实例，跨标签的撤销历史不保留。
 - Mermaid 图表以代码块下方的 SVG 预览呈现，代码块本身可继续编辑（非专用图形节点）。

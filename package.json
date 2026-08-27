@@ -1,8 +1,8 @@
 {
-  "name": "margin",
+  "name": "margin-ai",
   "version": "0.1.0",
-  "description": "A minimalist WYSIWYG Markdown desktop editor for macOS (Apple Silicon).",
-  "author": "Margin",
+  "description": "A minimalist WYSIWYG Markdown desktop editor with an AI assistant, for macOS (Apple Silicon).",
+  "author": "Margin-AI",
   "license": "MIT",
   "private": true,
   "main": "src/main/index.js",

@@ -5,6 +5,7 @@ const path = require('path');
 const fileService = require('./file-service');
 const { exportHtml, exportPdf } = require('./export-service');
 const { settingsStore } = require('./store');
+const aiService = require('./ai-service');
 
 const MARKDOWN_FILTERS = [{ name: 'Markdown', extensions: ['md', 'markdown', 'mdown', 'txt'] }];
 
@@ -153,7 +154,7 @@ function registerIpc() {
 
   // ---------- 窗口 ----------
   ipcMain.handle('window:set-title', (e, title) => {
-    getWin(e)?.setTitle(title || 'Margin');
+    getWin(e)?.setTitle(title || 'Margin-AI');
   });
   ipcMain.handle('window:set-edited', (e, edited) => {
     getWin(e)?.setDocumentEdited(!!edited);
@@ -164,6 +165,47 @@ function registerIpc() {
   ipcMain.handle('app:confirm-close', (e) => {
     const win = getWin(e);
     if (win && !win.isDestroyed()) win.destroy();
+  });
+
+  // ---------- AI ----------
+  // 流式对话：主进程拉取流式增量后，逐段回推渲染层；窗口若已销毁则静默跳过，
+  // 避免向已回收的 webContents 发送事件导致 Electron 报错。
+  // 不使用 safe() 包装：需要把 canceled 标记原样回传，让 UI 区分「取消」与「失败」。
+  ipcMain.handle('ai:chat', async (e, payload) => {
+    const { requestId, messages } = payload || {};
+    try {
+      const { content, reasoning, usage } = await aiService.chat({
+        requestId,
+        messages,
+        // delta 形如 { content } 或 { reasoning }，原样转发让渲染层分流到
+        // 正文与「思考过程」两处，不在这里做拼接。
+        onDelta: (delta) => {
+          if (!e.sender.isDestroyed()) {
+            e.sender.send('ai:chunk', { requestId, ...delta });
+          }
+        },
+      });
+      return { ok: true, content, reasoning, usage };
+    } catch (err) {
+      return { ok: false, error: err.message, canceled: !!err.canceled };
+    }
+  });
+
+  // 取消进行中的请求：渲染层点「停止」时调用，按 requestId 中止对应 fetch。
+  ipcMain.handle('ai:abort', (_e, requestId) => {
+    aiService.abort(requestId);
+    return { ok: true };
+  });
+
+  // 拉取模型列表供设置弹窗做下拉选择。payload 可带尚未保存的 baseUrl/apiKey，
+  // 这样用户填完地址就能立即看到列表，不必先保存再重新打开。
+  ipcMain.handle('ai:list-models', async (_e, payload) => {
+    try {
+      const { models } = await aiService.listModels(payload || {});
+      return { ok: true, models };
+    } catch (err) {
+      return { ok: false, error: err.message };
+    }
   });
 }
 

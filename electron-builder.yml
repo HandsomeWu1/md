@@ -1,6 +1,6 @@
-appId: com.margin.app
-productName: Margin
-copyright: Copyright © 2026 Margin
+appId: com.margin.ai.app
+productName: Margin-AI
+copyright: Copyright © 2026 Margin-AI
 
 directories:
   output: release
@@ -28,7 +28,7 @@ mac:
         - arm64
 
 dmg:
-  title: Margin
+  title: Margin-AI
   icon: build/icon.png
   contents:
     - x: 130

@@ -44,6 +44,16 @@ const api = {
     return () => ipcRenderer.removeListener('app:before-close', handler);
   },
 
+  // AI
+  aiChat: (payload) => ipcRenderer.invoke('ai:chat', payload),
+  aiAbort: (requestId) => ipcRenderer.invoke('ai:abort', requestId),
+  aiListModels: (payload) => ipcRenderer.invoke('ai:list-models', payload),
+  onAiChunk: (cb) => {
+    const handler = (_e, data) => cb(data);
+    ipcRenderer.on('ai:chunk', handler);
+    return () => ipcRenderer.removeListener('ai:chunk', handler);
+  },
+
   // 菜单事件（主进程 → 渲染进程）
   onMenu: (cb) => {
     const handler = (_e, action, payload) => cb(action, payload);

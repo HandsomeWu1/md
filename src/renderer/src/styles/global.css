@@ -28,6 +28,11 @@
   --titlebar-bg: transparent;   /* 透明背景，与下方编辑区无缝衔接 */
   --find-match: #ffe873;
   --find-match-current: #ffb454; /* 当前匹配项（替换掉刺眼的蓝色） */
+  --diff-added-bg: rgba(46, 160, 67, 0.07);
+  --diff-added-border: rgba(46, 160, 67, 0.5);
+  --diff-changed-bg: rgba(191, 135, 0, 0.08);
+  --diff-changed-border: rgba(191, 135, 0, 0.5);
+  --diff-removed: rgba(207, 34, 46, 0.55);
   --shadow: 0 6px 24px rgba(0, 0, 0, 0.12);
   --editor-font: -apple-system, BlinkMacSystemFont, "SF Pro Text", "PingFang SC", "Hiragino Sans GB", "Helvetica Neue", "Microsoft YaHei", sans-serif;
   --mono-font: "SF Mono", "JetBrains Mono", Menlo, Consolas, "Liberation Mono", monospace;
@@ -73,6 +78,11 @@
   --titlebar-bg: transparent;   /* dark 模式也透明 */
   --find-match: #6a5d00;
   --find-match-current: #f08c00; /* 深色主题当前匹配项 */
+  --diff-added-bg: rgba(63, 185, 80, 0.07);
+  --diff-added-border: rgba(63, 185, 80, 0.45);
+  --diff-changed-bg: rgba(227, 179, 65, 0.07);
+  --diff-changed-border: rgba(227, 179, 65, 0.45);
+  --diff-removed: rgba(248, 81, 73, 0.6);
   --shadow: 0 6px 24px rgba(0, 0, 0, 0.5);
   --tok-comment: #6a9955;
   --tok-keyword: #569cd6;
@@ -1728,7 +1738,16 @@ body {
   align-items: flex-start;
   justify-content: center;
   z-index: 2000;
-  padding-top: 18vh;
+  padding: 18vh 16px 32px;
+  /* 内容高（如展开 AI 提示词）时滚动整个遮罩层，而不是给弹窗设 overflow——
+     弹窗内的模型下拉是 absolute 浮层，一旦弹窗裁剪就会被切掉。 */
+  overflow-y: auto;
+}
+/* 内容超过视口时不再保留大片顶部留白，避免弹窗被推到看不见的位置 */
+@media (max-height: 860px) {
+  .modal-overlay {
+    padding-top: 3vh;
+  }
 }
 .modal {
   width: 380px;
@@ -2104,3 +2123,787 @@ body {
   max-width: 80vw;
 }
 
+
+/* ===== AI 面板 =====
+   风格约定：与 sidebar 一致的极简处理——共享 --bg、靠留白分组、
+   选中态统一用 --bg-hover + --text 的中性灰，不引入强调色。 */
+.ai-panel {
+  flex: 0 0 340px;
+  width: 340px;
+  min-width: 0;
+  background: var(--bg);
+  border-left: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+.ai-header {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 7px 8px 5px 12px;
+}
+.ai-title {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--text);
+  letter-spacing: 0.02em;
+}
+.ai-icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  border-radius: 5px;
+  cursor: pointer;
+  transition: background 0.12s ease, color 0.12s ease;
+}
+.ai-icon-btn:hover:not(:disabled) {
+  background: var(--bg-hover);
+  color: var(--text);
+}
+.ai-icon-btn:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+/* 消息列表 */
+.ai-messages {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 6px 12px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.ai-empty {
+  margin-top: 28px;
+  color: var(--text-muted);
+  font-size: 12.5px;
+  line-height: 1.7;
+}
+.ai-empty p {
+  margin: 0 0 4px;
+}
+.ai-empty-hint {
+  color: var(--text-muted);
+  opacity: 0.8;
+}
+.ai-link-btn {
+  margin-top: 4px;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: var(--text);
+  font-size: 12.5px;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+  cursor: pointer;
+}
+
+.ai-msg {
+  display: flex;
+  flex-direction: column;
+  font-size: 13px;
+  line-height: 1.68;
+}
+.ai-msg-user {
+  align-items: flex-end;
+}
+.ai-msg-user .ai-bubble {
+  max-width: 92%;
+  padding: 7px 11px;
+  border-radius: 10px;
+  background: var(--bg-hover);
+  color: var(--text);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.ai-scope-tag {
+  margin-bottom: 4px;
+  font-size: 11px;
+  color: var(--text-muted);
+}
+.ai-msg-assistant {
+  color: var(--text);
+}
+
+/* 助手回复的 Markdown 渲染：压缩纵向间距，避免侧栏里显得松散 */
+.ai-md > *:first-child {
+  margin-top: 0;
+}
+.ai-md > *:last-child {
+  margin-bottom: 0;
+}
+.ai-md p {
+  margin: 0 0 0.6em;
+}
+.ai-md h1,
+.ai-md h2,
+.ai-md h3,
+.ai-md h4,
+.ai-md h5,
+.ai-md h6 {
+  margin: 0.9em 0 0.4em;
+  font-size: 1em;
+  font-weight: 600;
+  color: var(--heading);
+}
+.ai-md ul,
+.ai-md ol {
+  margin: 0 0 0.6em;
+  padding-left: 1.35em;
+}
+.ai-md li {
+  margin: 0.15em 0;
+}
+.ai-md code {
+  font-family: var(--mono-font);
+  font-size: 0.88em;
+  background: var(--inline-code-bg);
+  padding: 0.1em 0.35em;
+  border-radius: 4px;
+}
+.ai-md pre {
+  margin: 0 0 0.6em;
+  padding: 9px 11px;
+  background: var(--code-bg);
+  border-radius: 6px;
+  overflow-x: auto;
+}
+.ai-md pre code {
+  background: transparent;
+  padding: 0;
+}
+.ai-md blockquote {
+  margin: 0 0 0.6em;
+  padding: 0.1em 0.9em;
+  color: var(--text-secondary);
+  border-left: 2px solid var(--quote-border);
+}
+.ai-md table {
+  border-collapse: collapse;
+  font-size: 0.92em;
+  margin: 0 0 0.6em;
+}
+.ai-md th,
+.ai-md td {
+  border: 1px solid var(--table-border);
+  padding: 3px 7px;
+}
+
+.ai-btn {
+  padding: 4px 11px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--text);
+  border-radius: 6px;
+  font-size: 12px;
+  cursor: pointer;
+  transition: background 0.1s ease;
+}
+.ai-btn:hover {
+  background: var(--bg-hover);
+}
+.ai-btn.primary {
+  background: var(--text);
+  border-color: var(--text);
+  color: var(--bg);
+}
+.ai-btn.primary:hover {
+  opacity: 0.85;
+}
+.ai-note {
+  margin-top: 6px;
+  font-size: 11.5px;
+  color: var(--text-muted);
+}
+.ai-note.error {
+  color: var(--tok-keyword);
+}
+/* 流式输出中的闪烁光标，用中性色，不引入强调色 */
+.ai-caret {
+  display: inline-block;
+  width: 2px;
+  height: 1em;
+  vertical-align: text-bottom;
+  background: var(--text-muted);
+  animation: ai-blink 1s step-end infinite;
+}
+@keyframes ai-blink {
+  50% {
+    opacity: 0;
+  }
+}
+
+/* 输入区 */
+.ai-composer {
+  flex: 0 0 auto;
+  padding: 8px 12px 12px;
+}
+/* 作用域切换：输入区上方的一行极简分段控件，决定 AI 这次交互针对当前文档还是整个工作区 */
+.ai-scope-switch {
+  display: flex;
+  gap: 4px;
+  padding: 8px 12px 0;
+}
+.ai-scope-switch button {
+  flex: 1 1 0;
+  padding: 4px 6px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--text-muted);
+  border-radius: 6px;
+  font-size: 11.5px;
+  cursor: pointer;
+  transition: background 0.12s ease, color 0.12s ease, border-color 0.12s ease;
+}
+.ai-scope-switch button:hover {
+  background: var(--bg-hover);
+  color: var(--text);
+}
+.ai-scope-switch button.active {
+  background: var(--bg-hover);
+  color: var(--text);
+  border-color: var(--border-strong);
+  font-weight: 600;
+}
+.ai-input {
+  width: 100%;
+  resize: none;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--editor-font);
+  font-size: 12.5px;
+  line-height: 1.6;
+  outline: none;
+  transition: border-color 0.12s ease;
+}
+.ai-input:focus {
+  border-color: var(--border-strong);
+}
+.ai-input::placeholder {
+  color: var(--text-muted);
+}
+.ai-composer-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 7px;
+}
+/* 选区上方浮动的 AI 快捷菜单 */
+.ai-sel-menu {
+  transform: translate(-50%, calc(-100% - 8px));
+  display: flex;
+  gap: 2px;
+  padding: 4px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.18);
+  z-index: 60;
+}
+.ai-sel-menu button {
+  padding: 4px 9px;
+  border: none;
+  background: transparent;
+  color: var(--text);
+  border-radius: 5px;
+  font-size: 12px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.ai-sel-menu button:hover {
+  background: var(--bg-hover);
+}
+.ai-scope {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+/* 无选区时这一行只是快捷键提示，压得更淡以免和「仅改写选中」的实义提示混淆 */
+.ai-scope-muted {
+  opacity: 0.7;
+}
+/* 意图判定完成前的等待态：省略号轮播，避免先渲染出半个协议标记 */
+.ai-thinking::after {
+  content: '…';
+  animation: ai-thinking-dots 1.2s steps(4, end) infinite;
+}
+@keyframes ai-thinking-dots {
+  0% { content: ''; }
+  25% { content: '.'; }
+  50% { content: '..'; }
+  75% { content: '...'; }
+}
+.ai-send {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--text);
+  border-radius: 6px;
+  cursor: pointer;
+  transition: background 0.1s ease, opacity 0.1s ease;
+}
+.ai-send:hover:not(:disabled) {
+  background: var(--bg-hover);
+}
+.ai-send:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+
+/* AI 设置弹窗 */
+.modal.ai-settings {
+  width: 460px;
+}
+.ai-field {
+  display: block;
+  margin-bottom: 10px;
+}
+.ai-field > span {
+  display: block;
+  margin-bottom: 4px;
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+.ai-key-row {
+  display: flex;
+  gap: 6px;
+}
+.ai-key-row .modal-input {
+  flex: 1;
+  min-width: 0;
+}
+/* 模型下拉：可输入 + 可选择。列表浮在输入框下方，不挤压弹窗高度 */
+.ai-model-box {
+  position: relative;
+}
+.ai-model-list {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: calc(100% + 4px);
+  z-index: 10;
+  max-height: 176px;
+  overflow-y: auto;
+  padding: 4px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  box-shadow: var(--shadow);
+}
+.ai-model-item {
+  display: block;
+  width: 100%;
+  padding: 6px 9px;
+  border: none;
+  background: transparent;
+  color: var(--text);
+  border-radius: 5px;
+  font-size: 12.5px;
+  font-family: var(--mono-font);
+  text-align: left;
+  cursor: pointer;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.ai-model-item:hover {
+  background: var(--bg-hover);
+}
+.ai-model-item.active {
+  background: var(--bg-hover);
+  font-weight: 600;
+}
+.ai-field-note {
+  margin-top: 5px;
+  font-size: 11.5px;
+  line-height: 1.5;
+  color: var(--text-muted);
+}
+.ai-field-note.error {
+  color: var(--tok-keyword);
+}
+
+/* Temperature 滑块：轨道与滑块都用中性色，不引入强调色 */
+.ai-temp-value {
+  margin-left: 8px;
+  font-family: var(--mono-font);
+  font-size: 11.5px;
+  color: var(--text-muted);
+}
+.ai-temp-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.ai-temp-label {
+  flex: 0 0 auto;
+  font-size: 11.5px;
+  color: var(--text-muted);
+}
+.ai-temp-slider {
+  flex: 1;
+  min-width: 0;
+  height: 18px;
+  margin: 0;
+  -webkit-appearance: none;
+  appearance: none;
+  background: transparent;
+  cursor: pointer;
+}
+.ai-temp-slider::-webkit-slider-runnable-track {
+  height: 3px;
+  border-radius: 2px;
+  background: var(--border-strong);
+}
+.ai-temp-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 13px;
+  height: 13px;
+  margin-top: -5px;
+  border-radius: 50%;
+  background: var(--text);
+  border: none;
+}
+.ai-temp-slider:focus {
+  outline: none;
+}
+.ai-temp-slider:focus::-webkit-slider-thumb {
+  box-shadow: 0 0 0 3px var(--bg-hover);
+}
+.ai-field-hint {
+  margin-top: 2px;
+  font-size: 11.5px;
+  line-height: 1.6;
+  color: var(--text-muted);
+}
+
+/* ===== AI 多模型配置档案 ===== */
+.ai-profiles {
+  margin-bottom: 4px;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg-sidebar);
+}
+.ai-profiles-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+.ai-profiles-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+.ai-profiles-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.ai-profiles-empty {
+  font-size: 11.5px;
+  color: var(--text-muted);
+  line-height: 1.6;
+}
+.ai-profile-chip {
+  appearance: none;
+  border: 1px solid var(--border-strong);
+  background: var(--bg);
+  color: var(--text-secondary);
+  font-size: 12px;
+  padding: 4px 10px;
+  border-radius: 14px;
+  cursor: pointer;
+  transition: background 0.12s, border-color 0.12s, color 0.12s;
+}
+.ai-profile-chip:hover {
+  background: var(--bg-hover);
+}
+.ai-profile-chip.active {
+  background: var(--bg-hover);
+  border-color: var(--text-muted);
+  color: var(--text);
+  font-weight: 600;
+}
+.ai-profile-new {
+  appearance: none;
+  border: 1px dashed var(--border-strong);
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 12px;
+  padding: 3px 9px;
+  border-radius: 14px;
+  cursor: pointer;
+}
+.ai-profile-new:hover {
+  background: var(--bg-hover);
+}
+.ai-profile-del {
+  margin-top: 8px;
+  appearance: none;
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 11.5px;
+  padding: 2px 0;
+  cursor: pointer;
+  text-decoration: underline;
+}
+.ai-profile-del:hover {
+  color: var(--diff-removed);
+}
+
+/* ===== AI 改动标注（正文内） =====
+   语义色仅用于「新增/修改/删除」这类必须区分的信息，强度压到最低：
+   淡背景 + 一条左侧细边，不改变文字颜色，避免干扰阅读。 */
+.editor-container .milkdown .ai-diff-added,
+.editor-container .milkdown .ai-diff-changed {
+  position: relative;
+  border-radius: 3px;
+  /* 用负外边距 + 内边距把底色向外扩一点，使块级高亮不至于紧贴文字 */
+  margin-left: -12px;
+  padding-left: 9px;
+  border-left: 3px solid transparent;
+}
+.editor-container .milkdown .ai-diff-added {
+  background: var(--diff-added-bg);
+  border-left-color: var(--diff-added-border);
+}
+.editor-container .milkdown .ai-diff-changed {
+  background: var(--diff-changed-bg);
+  border-left-color: var(--diff-changed-border);
+}
+/* 删除标记：正文里没有对应内容，用一个细小的三角提示「此处删除过内容」 */
+.ai-diff-removed-mark {
+  display: inline-block;
+  width: 0;
+  height: 0;
+  vertical-align: middle;
+  border-left: 5px solid var(--diff-removed);
+  border-top: 4px solid transparent;
+  border-bottom: 4px solid transparent;
+  margin-right: 2px;
+  cursor: help;
+}
+
+/* ===== AI 改动确认条 ===== */
+.diff-bar {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 14px;
+  background: var(--bg);
+  border-bottom: 1px solid var(--border);
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+.diff-bar-text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.diff-bar-btn {
+  flex: 0 0 auto;
+  padding: 3px 11px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--text);
+  border-radius: 6px;
+  font-size: 12px;
+  cursor: pointer;
+  transition: background 0.1s ease;
+}
+.diff-bar-btn:hover {
+  background: var(--bg-hover);
+}
+.diff-bar-btn.primary {
+  background: var(--text);
+  border-color: var(--text);
+  color: var(--bg);
+}
+.diff-bar-btn.primary:hover {
+  opacity: 0.85;
+}
+
+/* 改写进度/结果的单行状态（替代原先在面板里重复展示全文） */
+.ai-rewrite-status {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12.5px;
+  color: var(--text-secondary);
+}
+
+/* ===== AI 设置：高级（System 提示词） ===== */
+.ai-advanced {
+  margin-top: 12px;
+}
+.ai-advanced-toggle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  padding: 5px 0;
+  border: none;
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 12px;
+  cursor: pointer;
+}
+.ai-advanced-toggle:hover {
+  color: var(--text);
+}
+.ai-advanced-caret {
+  flex: 0 0 auto;
+  transition: transform 0.15s ease;
+}
+.ai-advanced-caret.open {
+  transform: rotate(90deg);
+}
+.ai-advanced-badge {
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: var(--bg-hover);
+  color: var(--text-muted);
+  font-size: 10.5px;
+}
+.ai-advanced-body {
+  margin-top: 6px;
+}
+.ai-prompt-input {
+  width: 100%;
+  /* 按视口高度收缩：小窗口下若让 10 行全展开，弹窗底部的保存按钮会被推出视口。
+     内容仍可在框内滚动，用户也可手动拖高。 */
+  max-height: min(260px, 24vh);
+  padding: 9px 11px;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--mono-font);
+  font-size: 11.5px;
+  line-height: 1.65;
+  outline: none;
+  resize: vertical;
+  transition: border-color 0.12s ease;
+}
+.ai-prompt-input:focus {
+  border-color: var(--border-strong);
+}
+.ai-prompt-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 6px;
+}
+.ai-prompt-bar .ai-field-note {
+  margin-top: 0;
+}
+.ai-btn:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+/* ===== 思考过程（可折叠） ===== */
+.ai-think {
+  margin-bottom: 8px;
+}
+.ai-think-toggle {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 2px 0;
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 11.5px;
+  cursor: pointer;
+}
+.ai-think-toggle:hover {
+  color: var(--text-secondary);
+}
+.ai-think-caret {
+  flex: 0 0 auto;
+  transition: transform 0.15s ease;
+}
+.ai-think-caret.open {
+  transform: rotate(90deg);
+}
+.ai-think-body {
+  margin-top: 5px;
+  padding: 7px 10px;
+  /* 思考过程往往很长，限高并可滚动，避免把真正的回答挤出视野 */
+  max-height: 200px;
+  overflow-y: auto;
+  border-left: 2px solid var(--border);
+  color: var(--text-muted);
+  font-size: 11.5px;
+  line-height: 1.7;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+/* ===== Token 用量 ===== */
+.ai-usage {
+  margin-top: 6px;
+  font-size: 11px;
+  color: var(--text-muted);
+  opacity: 0.75;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ===== 计费单价 ===== */
+.ai-price {
+  margin-top: 14px;
+}
+.ai-price-title {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin-bottom: 6px;
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+.ai-price-unit {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+.ai-price-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+.ai-price-grid label {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+.ai-price-grid label > span {
+  flex: 0 0 52px;
+  font-size: 11.5px;
+  color: var(--text-muted);
+}
+.ai-price-grid .modal-input {
+  min-width: 0;
+  padding: 5px 8px;
+  font-size: 12px;
+}
