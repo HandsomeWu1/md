@@ -1,5 +1,5 @@
 'use strict';
-const { contextBridge, ipcRenderer } = require('electron');
+const { contextBridge, ipcRenderer, webUtils } = require('electron');
 
 // 暴露给渲染进程的最小化、白名单化 API。
 const api = {
@@ -9,6 +9,8 @@ const api = {
   saveFileDialog: (name) => ipcRenderer.invoke('dialog:save-file', name),
   confirmClose: (name) => ipcRenderer.invoke('dialog:confirm-close', name),
   openPath: (p) => ipcRenderer.invoke('dialog:open-path', p),
+  // 拖放场景：Electron 32+ 移除了 File.path，需经 webUtils 取真实路径（sandbox/contextIsolation 下唯一可靠方式）
+  getPathForFile: (file) => webUtils.getPathForFile(file),
 
   // 文件
   readFile: (p) => ipcRenderer.invoke('file:read', p),

@@ -271,16 +271,19 @@ export default function App() {
       if (!hasFiles(dt)) return; // 内部文本拖拽不拦截
       e.preventDefault();
       const paths = [];
+      const pushPath = (f) => {
+        if (!f) return;
+        // Electron 32+ 移除了 File.path；优先用 webUtils.getPathForFile，回退到 .path
+        const p = (api.getPathForFile ? api.getPathForFile(f) : f.path) || f.path;
+        if (p) paths.push(p);
+      };
       if (dt.files) {
-        for (const f of dt.files) if (f && f.path) paths.push(f.path);
+        for (const f of dt.files) pushPath(f);
       }
-      // 回退：部分环境下 files[].path 为空，改从 items 取
+      // 回退：部分环境下 files 为空，从 items 取
       if (!paths.length && dt.items) {
         for (const it of dt.items) {
-          if (it.kind === 'file') {
-            const f = it.getAsFile();
-            if (f && f.path) paths.push(f.path);
-          }
+          if (it.kind === 'file') pushPath(it.getAsFile());
         }
       }
       const valid = paths.filter(Boolean);
