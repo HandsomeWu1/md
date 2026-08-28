@@ -683,24 +683,34 @@ export default function App() {
       const { query, replace, caseSensitive, matches, index } = searchRef.current;
       if (!query) return;
       let newMarkdown = t.markdown;
+      let newMatches = [];
+      let newIndex = -1;
       let count = 0;
       if (all) {
         const r = replaceAllInMarkdown(t.markdown, query, replace, caseSensitive);
         newMarkdown = r.text;
         count = r.count;
-      } else if (matches[index]) {
+        newMatches = findInMarkdown(newMarkdown, query, caseSensitive);
+        newIndex = newMatches.length ? 0 : -1;
+      } else if (matches && matches[index]) {
         const m = matches[index];
         newMarkdown = t.markdown.slice(0, m.from) + replace + t.markdown.slice(m.to);
         count = 1;
+        // 在新文本上重算匹配，并把高亮指向下一处（从替换点之后开始找），
+        // 避免复用滞后于编辑器的旧 matches 坐标导致错位/残留。
+        const after = m.from + replace.length;
+        newMatches = findInMarkdown(newMarkdown, query, caseSensitive);
+        newIndex = newMatches.findIndex((mm) => mm.from >= after);
+        if (newIndex === -1) newIndex = newMatches.length ? 0 : -1;
       }
       if (!count) return;
       suppressRef.current = true;
       editorRef.current?.setMarkdown(newMarkdown);
       suppressRef.current = false;
       updateTab(t.id, { markdown: newMarkdown, dirty: true });
-      runSearch(query, caseSensitive);
+      setSearch((s) => ({ ...s, matches: newMatches, index: newIndex }));
     },
-    [updateTab, runSearch]
+    [updateTab]
   );
 
   // 用 ref 镜像 search，供 doReplace 读取最新值
