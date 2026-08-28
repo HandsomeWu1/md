@@ -193,11 +193,33 @@ export default function App() {
     return id;
   }, []);
 
+  // 按路径打开文件夹（拖放目录时复用，不弹系统对话框）
+  const openFolderByPath = useCallback(async (folderPath) => {
+    if (!folderPath) return;
+    setFolderRoot(folderPath);
+    // 重置展开/子项缓存，避免残留上一个文件夹的数据
+    setExpanded(new Set());
+    setChildrenMap({});
+    const treeRes = await api.listTree(folderPath);
+    setFileTree(treeRes.ok ? treeRes.tree || [] : []);
+    setSidebarOpen(true);
+    setSidebarMode('files');
+    api.setSettings({ lastOpenedFolder: folderPath });
+  }, []);
+
+  // 按路径智能打开：文件→右侧 tab；目录→打开文件夹
   const openPath = useCallback(
     async (p) => {
       if (!p) return;
       const res = await api.openPath(p);
-      if (!res || res.ok === false || res.error) return;
+      if (!res || res.ok === false || res.error) {
+        if (res && res.error) setToast(`无法打开：${res.error}`);
+        return;
+      }
+      if (res.isDirectory) {
+        await openFolderByPath(res.filePath);
+        return;
+      }
       const existing = tabsRef.current.find((t) => t.path === res.filePath);
       if (existing) {
         setActiveTabId(existing.id);
@@ -212,7 +234,7 @@ export default function App() {
       });
       addRecent(res.filePath);
     },
-    [createTab, addRecent]
+    [createTab, addRecent, openFolderByPath]
   );
 
   const openFileDialog = useCallback(async () => {
@@ -230,17 +252,35 @@ export default function App() {
   const openFolderDialog = useCallback(async () => {
     const res = await api.openFolderDialog();
     if (res.canceled || !res.folderPath) return;
-    setFolderRoot(res.folderPath);
-    // 重置展开/子项缓存，避免残留上一个文件夹的数据
-    setExpanded(new Set());
-    setChildrenMap({});
-    const treeRes = await api.listTree(res.folderPath);
-    console.error('[openFolder] folderPath =', res.folderPath, '| listTree 结果 =', JSON.stringify(treeRes));
-    setFileTree(treeRes.ok ? treeRes.tree || [] : []);
-    setSidebarOpen(true);
-    setSidebarMode('files');
-    api.setSettings({ lastOpenedFolder: res.folderPath });
-  }, []);
+    await openFolderByPath(res.folderPath);
+  }, [openFolderByPath]);
+
+  // 从桌面/文件夹拖放文件或目录进窗口直接打开。
+  // 用 window 捕获阶段监听，确保不被编辑器（CodeMirror）内部的 drop 处理截断冒泡；
+  // 仅当 dataTransfer 含 Files（外部文件拖拽）才拦截，内部文本拖拽不受影响。
+  useEffect(() => {
+    const onDragOver = (e) => {
+      const dt = e.dataTransfer;
+      if (dt && Array.from(dt.types || []).includes('Files')) e.preventDefault();
+    };
+    const onDrop = async (e) => {
+      const dt = e.dataTransfer;
+      if (!dt || !dt.files || dt.files.length === 0) return;
+      e.preventDefault();
+      const paths = Array.from(dt.files)
+        .map((f) => f.path)
+        .filter(Boolean);
+      for (const p of paths) {
+        await openPath(p);
+      }
+    };
+    window.addEventListener('dragover', onDragOver, true);
+    window.addEventListener('drop', onDrop, true);
+    return () => {
+      window.removeEventListener('dragover', onDragOver, true);
+      window.removeEventListener('drop', onDrop, true);
+    };
+  }, [openPath]);
 
   const newTab = useCallback(() => {
     createTab({});
