@@ -259,18 +259,36 @@ export default function App() {
   // 用 window 捕获阶段监听，确保不被编辑器（CodeMirror）内部的 drop 处理截断冒泡；
   // 仅当 dataTransfer 含 Files（外部文件拖拽）才拦截，内部文本拖拽不受影响。
   useEffect(() => {
+    const hasFiles = (dt) =>
+      !!(dt && (Array.from(dt.items || []).some((i) => i.kind === 'file') || (dt.files && dt.files.length > 0)));
     const onDragOver = (e) => {
-      const dt = e.dataTransfer;
-      if (dt && Array.from(dt.types || []).includes('Files')) e.preventDefault();
+      // 必须无条件阻止 dragover 默认行为，drop 事件才会触发
+      // （dragover 阶段 dataTransfer.items/files 可能尚未填充，不能据此判定）
+      e.preventDefault();
     };
     const onDrop = async (e) => {
       const dt = e.dataTransfer;
-      if (!dt || !dt.files || dt.files.length === 0) return;
+      if (!hasFiles(dt)) return; // 内部文本拖拽不拦截
       e.preventDefault();
-      const paths = Array.from(dt.files)
-        .map((f) => f.path)
-        .filter(Boolean);
-      for (const p of paths) {
+      const paths = [];
+      if (dt.files) {
+        for (const f of dt.files) if (f && f.path) paths.push(f.path);
+      }
+      // 回退：部分环境下 files[].path 为空，改从 items 取
+      if (!paths.length && dt.items) {
+        for (const it of dt.items) {
+          if (it.kind === 'file') {
+            const f = it.getAsFile();
+            if (f && f.path) paths.push(f.path);
+          }
+        }
+      }
+      const valid = paths.filter(Boolean);
+      if (!valid.length) {
+        setToast('无法读取拖放的文件路径');
+        return;
+      }
+      for (const p of valid) {
         await openPath(p);
       }
     };
