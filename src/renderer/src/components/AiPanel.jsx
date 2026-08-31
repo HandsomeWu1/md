@@ -44,13 +44,19 @@ function ModelSelector({ onSelect }) {
 
   useEffect(() => {
     let alive = true;
-    settingsApi.ready.then(() => {
+    const apply = () => {
       if (!alive) return;
       const s = settingsApi.get();
       setEntries(s.aiModelEntries || []);
       setActiveId(s.aiActiveModelId || '');
-    });
-    return () => { alive = false; };
+    };
+    settingsApi.ready.then(apply);
+    // 订阅设置变更：在模型设置里新增/改名/删除后，面板即时刷新，避免停留在旧模型。
+    const unsub = settingsApi.subscribe(apply);
+    return () => {
+      alive = false;
+      if (unsub) unsub();
+    };
   }, []);
 
   // 外部点击关闭

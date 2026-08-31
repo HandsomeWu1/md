@@ -7,6 +7,8 @@
 
 let cache = null;
 let readyPromise = null;
+// 设置变更订阅：让弹窗外的组件（如对话面板的模型选择器）能感知配置改动并刷新。
+const listeners = new Set();
 
 function startLoad() {
   if (readyPromise) return;
@@ -47,7 +49,20 @@ export const settingsApi = {
       // 异步持久化；缓存已同步更新，失败静默处理
       window.api.setSettings(partial).catch(() => {});
     }
+    // 通知订阅者（同步），便于弹窗外组件即时刷新
+    listeners.forEach((fn) => {
+      try {
+        fn(cache);
+      } catch {
+        /* 单个订阅者出错不影响其他订阅者 */
+      }
+    });
     return cache;
+  },
+  // 订阅设置变更，返回取消订阅函数
+  subscribe(cb) {
+    listeners.add(cb);
+    return () => listeners.delete(cb);
   },
   // 缓存加载完成的 Promise
   get ready() {

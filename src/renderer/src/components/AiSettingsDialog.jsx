@@ -25,6 +25,7 @@ export default function AiSettingsDialog({ open, onClose }) {
   const [adding, setAdding] = useState(false);       // 是否在"新增"模式
   const [addUrl, setAddUrl] = useState('');
   const [addKey, setAddKey] = useState('');
+  const [addModelId, setAddModelId] = useState('');  // 手动填写的模型 ID（服务不支持列表接口时用）
   const [fetching, setFetching] = useState(false);
   const [fetchErr, setFetchErr] = useState('');
   const [fetchedModels, setFetchedModels] = useState([]);   // {id}[]
@@ -50,7 +51,7 @@ export default function AiSettingsDialog({ open, onClose }) {
 
   const save = useCallback(
     (patch = {}) => {
-      settingsApi.set({
+      const payload = {
         aiModelEntries: entries,
         aiActiveModelId: activeId,
         aiTemperature: temperature,
@@ -60,9 +61,11 @@ export default function AiSettingsDialog({ open, onClose }) {
         aiPriceCached: Number(priceCached) || 0,
         aiCurrency: currency,
         ...patch,
-      });
-      // 同步扁平字段给主进程直接读取（chat() 用这些字段发请求）
-      syncFlatFields(entries, activeId);
+      };
+      settingsApi.set(payload);
+      // 必须用 patch 之后的最终值同步扁平字段。若沿用闭包里的旧 entries/activeId，
+      // 修改模型后扁平字段会被旧数据覆盖，导致对话仍走旧模型。
+      syncFlatFields(payload.aiModelEntries, payload.aiActiveModelId);
     },
     [entries, activeId, temperature, sysPrompt, priceIn, priceOut, priceCached, currency]
   );
@@ -142,6 +145,40 @@ export default function AiSettingsDialog({ open, onClose }) {
     setFetchedModels([]);
     setSelectedFetched(new Set());
     save({ aiModelEntries: newEntries, aiActiveModelId: firstNewId });
+  }
+
+  // 生成一个不与已有条目冲突的 id
+  function makeId(model) {
+    const base = `${Date.now()}-${(model || 'model').slice(0, 20).replace(/[^a-zA-Z0-9]/g, '_')}`;
+    let id = base;
+    let n = 1;
+    while (entries.some((e) => e.id === id)) id = `${base}-${n++}`;
+    return id;
+  }
+
+  function resetAddForm() {
+    setAddUrl('');
+    setAddKey('');
+    setAddModelId('');
+    setFetchedModels([]);
+    setSelectedFetched(new Set());
+    setFetchErr('');
+  }
+
+  // 手动填写模型 ID 直接添加：用于服务不提供 /models 列表接口的情况
+  function handleAddManual() {
+    const url = addUrl.trim();
+    const model = addModelId.trim();
+    const key = addKey.trim();
+    if (!url || !model) return;
+
+    const id = makeId(model);
+    const newEntries = [...entries, { id, name: model, model, baseUrl: url, apiKey: key }];
+    setEntries(newEntries);
+    setActiveId(id);
+    setAdding(false);
+    resetAddForm();
+    save({ aiModelEntries: newEntries, aiActiveModelId: id });
   }
 
   function toggleFetched(mid) {
@@ -286,6 +323,30 @@ export default function AiSettingsDialog({ open, onClose }) {
                   </div>
                 </label>
 
+                <label className="ai-field">
+                  <span>模型 ID（手动添加）</span>
+                  <div className="ai-key-row">
+                    <input
+                      className="modal-input"
+                      value={addModelId}
+                      onChange={(e) => setAddModelId(e.target.value)}
+                      placeholder="gpt-4o / deepseek-chat / hunyuan-pro"
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' && addUrl.trim() && addModelId.trim()) handleAddManual();
+                      }}
+                    />
+                    <button
+                      className={`modal-btn ${!addUrl.trim() || !addModelId.trim() ? 'disabled' : ''}`}
+                      onClick={handleAddManual}
+                      disabled={!addUrl.trim() || !addModelId.trim()}
+                      style={{ flex: '0 0 auto', fontSize: 11.5, padding: '6px 12px' }}
+                    >
+                      直接添加
+                    </button>
+                  </div>
+                  <span className="ai-field-hint">服务不支持模型列表时，可直接填写模型 ID 后点「直接添加」</span>
+                </label>
+
                 {fetchErr && <p className="ai-field-note error">{fetchErr}</p>}
 
                 {fetchedModels.length > 0 && (
@@ -315,7 +376,9 @@ export default function AiSettingsDialog({ open, onClose }) {
                 )}
 
                 {!fetchedModels.length && !fetching && (
-                  <p className="ai-field-hint">填写 API 地址和 Key 后点击「获取模型」，可一次性添加该服务下的所有模型。</p>
+                  <p className="ai-field-hint">
+                    填写 API 地址和 Key，可点「获取模型」批量添加该服务下的模型；若服务不提供模型列表，可直接在「模型 ID」里填写后点「直接添加」。
+                  </p>
                 )}
               </div>
             ) : activeEntry ? (

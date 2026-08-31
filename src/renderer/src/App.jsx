@@ -136,17 +136,24 @@ export default function App() {
 
   // 启动时加载持久化设置（主题、标题编号等）
   useEffect(() => {
-    api.getSettings().then((s) => {
-      if (s && typeof s === 'object') {
-        setSettings((prev) => {
-          const merged = { ...prev, ...s };
-          // 防御：fontSize 必须是 12–32 的有效数字，否则回退默认 13
-          const fs = Number(merged.fontSize);
-          merged.fontSize = Number.isFinite(fs) && fs >= 12 && fs <= 32 ? fs : 13;
-          return merged;
-        });
-      }
-    });
+    let alive = true;
+    const apply = (s) => {
+      if (!alive || !s || typeof s !== 'object') return;
+      setSettings((prev) => {
+        const merged = { ...prev, ...s };
+        // 防御：fontSize 必须是 12–32 的有效数字，否则回退默认 13
+        const fs = Number(merged.fontSize);
+        merged.fontSize = Number.isFinite(fs) && fs >= 12 && fs <= 32 ? fs : 13;
+        return merged;
+      });
+    };
+    api.getSettings().then(apply);
+    // 订阅设置变更：AI 设置弹窗写入后同步刷新，避免 aiConfigured 等派生状态停留在旧值。
+    const unsub = settingsApi.subscribe(apply);
+    return () => {
+      alive = false;
+      if (unsub) unsub();
+    };
   }, []);
 
   // ---------- 基础工具 ----------
