@@ -2942,6 +2942,11 @@ body {
   font-weight: 700;
   text-transform: uppercase;
 }
+/* 厂商徽标（ModelIcon）：不参与压缩，保证列表里对齐一致 */
+.ai-model-logo {
+  flex: 0 0 auto;
+  display: block;
+}
 .ai-model-selector-name {
   max-width: 80px;
   overflow: hidden;

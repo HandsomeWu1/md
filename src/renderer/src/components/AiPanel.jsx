@@ -3,6 +3,7 @@ import { renderAiMarkdown } from '../utils/aiMarkdown';
 import { parseAiReply, splitThinking } from '../utils/aiPrompt';
 import { formatUsage } from '../utils/aiUsage';
 import { settingsApi } from '../utils/settings';
+import ModelIcon from './ModelIcon';
 
 const ICONS = {
   // 滑块式设置图标（齿轮容易被误认成太阳，改用调节滑块更清晰）
@@ -84,7 +85,11 @@ function ModelSelector({ onSelect }) {
   return (
     <div className="ai-model-selector" ref={ref}>
       <button className="ai-model-selector-btn" onClick={() => setOpen((v) => !v)} title="切换模型">
-        <span className="ai-model-selector-icon">{(active?.model || '?').charAt(0).toUpperCase()}</span>
+        {active ? (
+          <ModelIcon entry={active} size={18} />
+        ) : (
+          <span className="ai-model-selector-icon">?</span>
+        )}
         <span className="ai-model-selector-name">{active?.model || '选择模型'}</span>
         <span className="ai-model-selector-arrow">▾</span>
       </button>
@@ -99,6 +104,7 @@ function ModelSelector({ onSelect }) {
                 className={`ai-model-sel-item ${e.id === activeId ? 'active' : ''}`}
                 onClick={() => handleSelect(e.id)}
               >
+                <ModelIcon entry={e} size={15} />
                 <span className="ai-model-sel-name">{e.model}</span>
               </button>
             ))
