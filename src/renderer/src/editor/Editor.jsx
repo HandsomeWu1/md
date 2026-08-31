@@ -291,9 +291,9 @@ const InnerEditor = forwardRef(function InnerEditor({ initialValue, onChange, on
         });
       },
       // 滚动到第一处 AI 改动，便于用户从改动处开始检查。
-      // 用 ProseMirror 事务的 scrollIntoView（基于 coordsAtPos 计算），它能正确处理
-      // .editor-container 这个滚动容器；DOM 的 el.scrollIntoView 在本布局下会滚错位置，
-      // 导致改动内容落在可见区之外（偏下）。
+      // 手动基于 coordsAtPos 计算并滚动 .editor-container：
+      // DOM 的 el.scrollIntoView 在此布局下会滚错位置，ProseMirror 的 tr.scrollIntoView
+      // 在 Milkdown 下不触发滚动，因此这里直接算坐标滚动到居中处。
       scrollToFirstDiff: () => {
         runWithView(getRef.current(), (view) => {
           const set = diffHighlightKey.getState(view.state);
@@ -301,12 +301,16 @@ const InnerEditor = forwardRef(function InnerEditor({ initialValue, onChange, on
           const found = set.find();
           if (!found.length) return;
           const first = found.reduce((min, d) => (d.from < min.from ? d : min), found[0]);
-          const pos = Math.min(first.from, view.state.doc.content.size);
-          view.dispatch(
-            view.state.tr
-              .setSelection(TextSelection.near(view.state.doc.resolve(pos)))
-              .scrollIntoView()
-          );
+          const pos = Math.max(1, Math.min(first.from, view.state.doc.content.size));
+          // 光标移到改动处，方便紧接着编辑
+          view.dispatch(view.state.tr.setSelection(TextSelection.near(view.state.doc.resolve(pos))));
+          const coords = view.coordsAtPos(pos);
+          const scroller = view.dom.closest('.editor-container');
+          if (coords && scroller) {
+            const rect = scroller.getBoundingClientRect();
+            const target = scroller.scrollTop + (coords.top - rect.top) - rect.height / 2;
+            scroller.scrollTo({ top: Math.max(0, target), behavior: 'smooth' });
+          }
         });
       },
       undo: () => runWithView(getRef.current(), (view) => undo(view.state, view.dispatch)),
