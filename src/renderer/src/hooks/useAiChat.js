@@ -43,6 +43,7 @@ export function useAiChat({
   getScope,
   getWorkspaceDocs,
   onRewritten,
+  setScope,
 }) {
   const api = window.api;
   const [sessions, setSessions] = useState({});
@@ -315,12 +316,15 @@ export function useAiChat({
   // 选区快捷动作：强制 doc 作用域（结果作用在当前文档），复用实时选区上下文。
   // 不再强制按选区改写——预设结果作为「对话回复」显示在 AI 面板里，不直接改文档；
   // 用户要落盘时自行在对话框说「改到文件里」，由模型输出 %%REWRITE%% 标记再写入。
+  // 同时把面板切回「当前文件」tab——否则若用户之前停留在工作区 tab，
+  // 结果写进 doc 会话却显示在 workspace 会话，看不到。
   const runPreset = useCallback(
     (instruction) => {
+      if (setScope) setScope('doc');
       const key = scopeSessionKey('doc', getTabId() || NO_DOC_KEY);
       return doSend('doc', key, instruction, false);
     },
-    [doSend, getTabId]
+    [doSend, getTabId, setScope]
   );
 
   const stop = useCallback(() => {

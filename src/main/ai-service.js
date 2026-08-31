@@ -83,10 +83,24 @@ function makeCanceledError() {
  */
 async function chat({ requestId, messages, onDelta }) {
   const s = settingsStore.get();
-  if (!s.aiBaseUrl || !s.aiModel) {
+
+  // 优先用扁平字段（设置弹窗切换模型时会同步）；若为空则从新数据模型回填。
+  let baseUrl = s.aiBaseUrl || '';
+  let apiKey = s.aiApiKey || '';
+  let model = s.aiModel || '';
+  if ((!baseUrl || !apiKey || !model) && s.aiActiveModelId && (s.aiModelEntries || []).length) {
+    const active = s.aiModelEntries.find((e) => e.id === s.aiActiveModelId);
+    if (active) {
+      baseUrl = active.baseUrl || baseUrl;
+      apiKey = active.apiKey || apiKey;
+      model = active.model || model;
+    }
+  }
+
+  if (!baseUrl || !model) {
     throw new Error('请先在 AI 设置中填写 API 地址和模型名');
   }
-  if (!s.aiApiKey) {
+  if (!apiKey) {
     throw new Error('请先在 AI 设置中填写 API Key');
   }
 
@@ -106,7 +120,7 @@ async function chat({ requestId, messages, onDelta }) {
   let reasoning = '';
   let usage = null;
   try {
-    const url = buildChatUrl(s.aiBaseUrl);
+    const url = buildChatUrl(baseUrl);
 
     // 单条 SSE 事件的处理逻辑。抽成闭包供主循环与末尾残留 buffer 复用，
     // 避免两处解析逻辑漂移（早先版本就因此漏处理过 reasoning 字段）。
@@ -142,9 +156,9 @@ async function chat({ requestId, messages, onDelta }) {
 
     const doFetch = (withUsage) => {
       const body = {
-        model: s.aiModel,
+        model,
         messages,
-        temperature: s.aiTemperature,
+        temperature: s.aiTemperature ?? DEFAULT_TEMP,
         stream: true,
       };
       // 流式响应默认不含 usage，必须显式要求；但部分兼容端点不认识这个参数，
@@ -154,7 +168,7 @@ async function chat({ requestId, messages, onDelta }) {
         method: 'POST',
         signal: controller.signal,
         headers: {
-          Authorization: 'Bearer ' + s.aiApiKey,
+          Authorization: 'Bearer ' + apiKey,
           'Content-Type': 'application/json',
         },
         body: JSON.stringify(body),

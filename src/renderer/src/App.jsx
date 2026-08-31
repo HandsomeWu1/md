@@ -18,6 +18,7 @@ import { useAiChat, NO_DOC_KEY } from './hooks/useAiChat';
 import Editor from './editor/Editor';
 import { extractOutline, countWords, findInMarkdown, replaceAllInMarkdown } from './utils/markdown';
 import { buildExportHtml } from './utils/export';
+import { settingsApi } from './utils/settings';
 import { setFocusMode, setTypewriterMode } from './editor/modes';
 import { actions } from './editor/commands';
 import { editorViewCtx } from '@milkdown/kit/core';
@@ -57,7 +58,7 @@ export default function App() {
   const [aiOpen, setAiOpen] = useState(false);
   const [aiSettingsOpen, setAiSettingsOpen] = useState(false);
   // AI 作用域：'doc' 当前文档 | 'tabs' 已打开文件 | 'folder' 整个打开的文件夹
-  const [aiScope, setAiScope] = useState('tabs');
+  const [aiScope, setAiScope] = useState('doc');
   // 选区浮动 AI 菜单的位置（视口坐标），null 表示隐藏
   const [aiSelMenu, setAiSelMenu] = useState(null);
   // 待确认的 AI 改动：{ tabId, snapshot, added, changed, removed, coarse }
@@ -135,17 +136,24 @@ export default function App() {
 
   // 启动时加载持久化设置（主题、标题编号等）
   useEffect(() => {
-    api.getSettings().then((s) => {
-      if (s && typeof s === 'object') {
-        setSettings((prev) => {
-          const merged = { ...prev, ...s };
-          // 防御：fontSize 必须是 12–32 的有效数字，否则回退默认 13
-          const fs = Number(merged.fontSize);
-          merged.fontSize = Number.isFinite(fs) && fs >= 12 && fs <= 32 ? fs : 13;
-          return merged;
-        });
-      }
-    });
+    let alive = true;
+    const apply = (s) => {
+      if (!alive || !s || typeof s !== 'object') return;
+      setSettings((prev) => {
+        const merged = { ...prev, ...s };
+        // 防御：fontSize 必须是 12–32 的有效数字，否则回退默认 13
+        const fs = Number(merged.fontSize);
+        merged.fontSize = Number.isFinite(fs) && fs >= 12 && fs <= 32 ? fs : 13;
+        return merged;
+      });
+    };
+    api.getSettings().then(apply);
+    // 订阅设置变更：AI 设置弹窗写入后同步刷新，避免 aiConfigured 等派生状态停留在旧值。
+    const unsub = settingsApi.subscribe(apply);
+    return () => {
+      alive = false;
+      if (unsub) unsub();
+    };
   }, []);
 
   // ---------- 基础工具 ----------
@@ -192,11 +200,33 @@ export default function App() {
     return id;
   }, []);
 
+  // 按路径打开文件夹（拖放目录时复用，不弹系统对话框）
+  const openFolderByPath = useCallback(async (folderPath) => {
+    if (!folderPath) return;
+    setFolderRoot(folderPath);
+    // 重置展开/子项缓存，避免残留上一个文件夹的数据
+    setExpanded(new Set());
+    setChildrenMap({});
+    const treeRes = await api.listTree(folderPath);
+    setFileTree(treeRes.ok ? treeRes.tree || [] : []);
+    setSidebarOpen(true);
+    setSidebarMode('files');
+    api.setSettings({ lastOpenedFolder: folderPath });
+  }, []);
+
+  // 按路径智能打开：文件→右侧 tab；目录→打开文件夹
   const openPath = useCallback(
     async (p) => {
       if (!p) return;
       const res = await api.openPath(p);
-      if (!res || res.ok === false || res.error) return;
+      if (!res || res.ok === false || res.error) {
+        if (res && res.error) setToast(`无法打开：${res.error}`);
+        return;
+      }
+      if (res.isDirectory) {
+        await openFolderByPath(res.filePath);
+        return;
+      }
       const existing = tabsRef.current.find((t) => t.path === res.filePath);
       if (existing) {
         setActiveTabId(existing.id);
@@ -211,7 +241,7 @@ export default function App() {
       });
       addRecent(res.filePath);
     },
-    [createTab, addRecent]
+    [createTab, addRecent, openFolderByPath]
   );
 
   const openFileDialog = useCallback(async () => {
@@ -229,17 +259,56 @@ export default function App() {
   const openFolderDialog = useCallback(async () => {
     const res = await api.openFolderDialog();
     if (res.canceled || !res.folderPath) return;
-    setFolderRoot(res.folderPath);
-    // 重置展开/子项缓存，避免残留上一个文件夹的数据
-    setExpanded(new Set());
-    setChildrenMap({});
-    const treeRes = await api.listTree(res.folderPath);
-    console.error('[openFolder] folderPath =', res.folderPath, '| listTree 结果 =', JSON.stringify(treeRes));
-    setFileTree(treeRes.ok ? treeRes.tree || [] : []);
-    setSidebarOpen(true);
-    setSidebarMode('files');
-    api.setSettings({ lastOpenedFolder: res.folderPath });
-  }, []);
+    await openFolderByPath(res.folderPath);
+  }, [openFolderByPath]);
+
+  // 从桌面/文件夹拖放文件或目录进窗口直接打开。
+  // 用 window 捕获阶段监听，确保不被编辑器（CodeMirror）内部的 drop 处理截断冒泡；
+  // 仅当 dataTransfer 含 Files（外部文件拖拽）才拦截，内部文本拖拽不受影响。
+  useEffect(() => {
+    const hasFiles = (dt) =>
+      !!(dt && (Array.from(dt.items || []).some((i) => i.kind === 'file') || (dt.files && dt.files.length > 0)));
+    const onDragOver = (e) => {
+      // 必须无条件阻止 dragover 默认行为，drop 事件才会触发
+      // （dragover 阶段 dataTransfer.items/files 可能尚未填充，不能据此判定）
+      e.preventDefault();
+    };
+    const onDrop = async (e) => {
+      const dt = e.dataTransfer;
+      if (!hasFiles(dt)) return; // 内部文本拖拽不拦截
+      e.preventDefault();
+      const paths = [];
+      const pushPath = (f) => {
+        if (!f) return;
+        // Electron 32+ 移除了 File.path；优先用 webUtils.getPathForFile，回退到 .path
+        const p = (api.getPathForFile ? api.getPathForFile(f) : f.path) || f.path;
+        if (p) paths.push(p);
+      };
+      if (dt.files) {
+        for (const f of dt.files) pushPath(f);
+      }
+      // 回退：部分环境下 files 为空，从 items 取
+      if (!paths.length && dt.items) {
+        for (const it of dt.items) {
+          if (it.kind === 'file') pushPath(it.getAsFile());
+        }
+      }
+      const valid = paths.filter(Boolean);
+      if (!valid.length) {
+        setToast('无法读取拖放的文件路径');
+        return;
+      }
+      for (const p of valid) {
+        await openPath(p);
+      }
+    };
+    window.addEventListener('dragover', onDragOver, true);
+    window.addEventListener('drop', onDrop, true);
+    return () => {
+      window.removeEventListener('dragover', onDragOver, true);
+      window.removeEventListener('drop', onDrop, true);
+    };
+  }, [openPath]);
 
   const newTab = useCallback(() => {
     createTab({});
@@ -621,24 +690,34 @@ export default function App() {
       const { query, replace, caseSensitive, matches, index } = searchRef.current;
       if (!query) return;
       let newMarkdown = t.markdown;
+      let newMatches = [];
+      let newIndex = -1;
       let count = 0;
       if (all) {
         const r = replaceAllInMarkdown(t.markdown, query, replace, caseSensitive);
         newMarkdown = r.text;
         count = r.count;
-      } else if (matches[index]) {
+        newMatches = findInMarkdown(newMarkdown, query, caseSensitive);
+        newIndex = newMatches.length ? 0 : -1;
+      } else if (matches && matches[index]) {
         const m = matches[index];
         newMarkdown = t.markdown.slice(0, m.from) + replace + t.markdown.slice(m.to);
         count = 1;
+        // 在新文本上重算匹配，并把高亮指向下一处（从替换点之后开始找），
+        // 避免复用滞后于编辑器的旧 matches 坐标导致错位/残留。
+        const after = m.from + replace.length;
+        newMatches = findInMarkdown(newMarkdown, query, caseSensitive);
+        newIndex = newMatches.findIndex((mm) => mm.from >= after);
+        if (newIndex === -1) newIndex = newMatches.length ? 0 : -1;
       }
       if (!count) return;
       suppressRef.current = true;
       editorRef.current?.setMarkdown(newMarkdown);
       suppressRef.current = false;
       updateTab(t.id, { markdown: newMarkdown, dirty: true });
-      runSearch(query, caseSensitive);
+      setSearch((s) => ({ ...s, matches: newMatches, index: newIndex }));
     },
-    [updateTab, runSearch]
+    [updateTab]
   );
 
   // 用 ref 镜像 search，供 doReplace 读取最新值
@@ -661,7 +740,7 @@ export default function App() {
   }, []);
 
   const aiGetTabId = useCallback(() => activeTabIdRef.current, []);
-  const aiGetMaxChars = useCallback(() => settingsRef.current.aiMaxContextChars || 60000, []);
+  const aiGetMaxChars = useCallback(() => settingsApi.get().aiMaxContextChars || 60000, []);
   const aiGetCanRewrite = useCallback(() => {
     // 工作区作用域按文件名定位目标，不受当前激活标签类型限制
     if ((aiScopeRef.current || 'doc') !== 'doc') return true;
@@ -692,9 +771,12 @@ export default function App() {
   const aiOnRewritten = useCallback((tabId) => {
     if (tabId) switchTab(tabId);
   }, [switchTab]);
-  const aiGetSystemPrompt = useCallback(() => settingsRef.current.aiSystemPrompt || '', []);
+  // 这些 getter 必须读 settingsApi 的同步缓存，而非 settingsRef.current：
+  // AiSettingsDialog 通过 settingsApi.set 写入，读 settingsRef 会拿到启动时的旧值，
+  // 导致系统提示词等改了却"不生效"。
+  const aiGetSystemPrompt = useCallback(() => settingsApi.get().aiSystemPrompt || '', []);
   const aiGetPrice = useCallback(() => {
-    const s = settingsRef.current;
+    const s = settingsApi.get();
     return {
       priceIn: s.aiPriceIn || 0,
       priceOut: s.aiPriceOut || 0,
@@ -816,6 +898,7 @@ export default function App() {
     getScope: aiGetScope,
     getWorkspaceDocs: aiGetWorkspaceDocs,
     onRewritten: aiOnRewritten,
+    setScope: setAiScope,
   });
 
   // 保留改动：仅清除标注，内容维持不变。
@@ -1294,9 +1377,7 @@ export default function App() {
 
       <AiSettingsDialog
         open={aiSettingsOpen}
-        settings={settings}
-        onSave={saveAiSettings}
-        onCancel={() => setAiSettingsOpen(false)}
+        onClose={() => setAiSettingsOpen(false)}
       />
 
       <SearchDialog

@@ -89,8 +89,21 @@ function registerIpc() {
   // 通过路径直接打开（最近文件 / Finder 拖入），授权并读取
   ipcMain.handle('dialog:open-path', async (_e, p) => {
     try {
-      fileService.grantFile(p);
-      return { ok: true, filePath: p, content: fileService.readFile(p) };
+      if (!p) return { ok: false, error: 'no path' };
+      const abs = path.resolve(p);
+      let st;
+      try {
+        st = fs.statSync(abs);
+      } catch (e2) {
+        return { ok: false, error: e2.message };
+      }
+      if (st.isDirectory()) {
+        // 目录：授权后由渲染层按"打开文件夹"处理（listTree 需已授权）
+        fileService.grantFolder(abs);
+        return { ok: true, isDirectory: true, filePath: abs };
+      }
+      fileService.grantFile(abs);
+      return { ok: true, filePath: abs, content: fileService.readFile(abs) };
     } catch (err) {
       return { ok: false, error: err.message };
     }
