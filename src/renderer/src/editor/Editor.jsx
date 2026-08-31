@@ -290,7 +290,10 @@ const InnerEditor = forwardRef(function InnerEditor({ initialValue, onChange, on
           view.dispatch(view.state.tr.setMeta(diffHighlightKey, { type: 'clear' }));
         });
       },
-      // 滚动到第一处 AI 改动，便于用户从改动处开始检查
+      // 滚动到第一处 AI 改动，便于用户从改动处开始检查。
+      // 用 ProseMirror 事务的 scrollIntoView（基于 coordsAtPos 计算），它能正确处理
+      // .editor-container 这个滚动容器；DOM 的 el.scrollIntoView 在本布局下会滚错位置，
+      // 导致改动内容落在可见区之外（偏下）。
       scrollToFirstDiff: () => {
         runWithView(getRef.current(), (view) => {
           const set = diffHighlightKey.getState(view.state);
@@ -298,9 +301,12 @@ const InnerEditor = forwardRef(function InnerEditor({ initialValue, onChange, on
           const found = set.find();
           if (!found.length) return;
           const first = found.reduce((min, d) => (d.from < min.from ? d : min), found[0]);
-          const dom = view.domAtPos(first.from);
-          const el = dom && dom.node && dom.node.nodeType === 1 ? dom.node : dom?.node?.parentElement;
-          if (el && el.scrollIntoView) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          const pos = Math.min(first.from, view.state.doc.content.size);
+          view.dispatch(
+            view.state.tr
+              .setSelection(TextSelection.near(view.state.doc.resolve(pos)))
+              .scrollIntoView()
+          );
         });
       },
       undo: () => runWithView(getRef.current(), (view) => undo(view.state, view.dispatch)),

@@ -229,7 +229,7 @@ export default function AiSettingsDialog({ open, onClose }) {
   const activeEntry = entries.find((e) => e.id === activeId);
 
   return (
-    <div className="modal-overlay" onClick={onClose}>
+    <div className="modal-overlay">
       <div className="modal ai-settings" onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true">
         {/* 标题栏 */}
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
